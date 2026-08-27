@@ -1,0 +1,190 @@
+// Prisma schema — Microsoft SQL Server (per ADR 0001).
+//
+// Conventions:
+//   * PK is a NVARCHAR(36) — we generate UUIDs in the application layer.
+//   * tenantId is always present and always the leading column of
+//     multi-column indexes for query-planner locality (R10).
+//   * We do NOT use SQL Server `rowversion` for optimistic locking
+//     (see ADR 0001 §4.1). We use an explicit `version INT`.
+//   * JSON is stored as NVARCHAR(MAX) (SQL Server has no native JSON
+//     type). Parse at the application boundary.
+//   * Quantities and money are stored as BigInt — the domain layer's
+//     Money/Quantity are bigint end-to-end (R5, no float).
+//   * All tenant FKs are `onDelete: NoAction, onUpdate: NoAction`
+//     because MSSQL rejects multiple cascading paths and we already
+//     have one (via ProductionOrder). Cleanup is orchestrated at the
+//     application layer.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = []
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Tenants
+// ---------------------------------------------------------------------------
+
+model Tenant {
+  id                             String   @id @db.NVarChar(36)
+  name                           String   @db.NVarChar(200)
+  dualApprovalThresholdSatang    BigInt
+  overToleranceBasisPoints       BigInt
+  underToleranceBasisPoints      BigInt
+  createdAt                      DateTime @default(now()) @db.DateTime2
+  updatedAt                      DateTime @updatedAt @db.DateTime2
+
+  productionOrders               ProductionOrder[]
+  outboxMessages                 OutboxMessage[]
+  bomLines                       BomLine[]
+  calendars                      TenantCalendar[]
+  progressReports                ProgressReport[]
+  stock                          StockLevel[]
+
+  @@map("tenant")
+}
+
+model TenantCalendar {
+  id           String   @id @db.NVarChar(36)
+  tenantId     String   @db.NVarChar(36)
+  date         DateTime @db.Date
+  isWorkingDay Boolean
+  note         String?  @db.NVarChar(200)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, date])
+  @@index([tenantId, date])
+  @@map("tenant_calendar")
+}
+
+// ---------------------------------------------------------------------------
+// Production order aggregate
+// ---------------------------------------------------------------------------
+
+model ProductionOrder {
+  id                       String   @id @db.NVarChar(36)
+  tenantId                 String   @db.NVarChar(36)
+  createdBy                String   @db.NVarChar(64)
+  status                   String   @db.NVarChar(24)
+
+  orderedQuantityValue     BigInt
+  orderedQuantityUom       String   @db.NVarChar(16)
+
+  totalAmountSatang        BigInt
+  totalAmountCurrency      String   @db.NVarChar(3)
+
+  firstApprover            String?  @db.NVarChar(64)
+  secondApprover           String?  @db.NVarChar(64)
+
+  producedQuantityValue    BigInt
+  producedQuantityUom      String   @db.NVarChar(16)
+
+  version                  Int      @default(0)
+
+  createdAt                DateTime @db.DateTime2
+  updatedAt                DateTime @db.DateTime2
+
+  tenant                   Tenant           @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  progressReports          ProgressReport[]
+  bomLines                 BomLine[]
+
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
+  @@map("production_order")
+}
+
+model ProgressReport {
+  id                String   @id @db.NVarChar(36)
+  productionOrderId String   @db.NVarChar(36)
+  tenantId          String   @db.NVarChar(36)
+  quantityValue     BigInt
+  quantityUom       String   @db.NVarChar(16)
+  reportedBy        String   @db.NVarChar(64)
+  reportedAt        DateTime @db.DateTime2
+
+  productionOrder ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([tenantId, productionOrderId])
+  @@index([tenantId, reportedAt])
+  @@map("progress_report")
+}
+
+// ---------------------------------------------------------------------------
+// Bill of materials — one row per (order, component sku)
+// ---------------------------------------------------------------------------
+
+model BomLine {
+  id                    String   @id @db.NVarChar(36)
+  tenantId              String   @db.NVarChar(36)
+  productionOrderId     String   @db.NVarChar(36)
+  sku                   String   @db.NVarChar(64)
+  requiredPerUnitValue  BigInt
+  requiredPerUnitUom    String   @db.NVarChar(16)
+  scrapBasisPoints      BigInt
+  yieldBasisPoints      BigInt
+  minPackValue          BigInt
+  minPackUom            String   @db.NVarChar(16)
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  productionOrder ProductionOrder @relation(fields: [productionOrderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([tenantId, productionOrderId])
+  @@map("bom_line")
+}
+
+// ---------------------------------------------------------------------------
+// Stock — minimal per-tenant, per-SKU on-hand levels. Real installations
+// hook InventoryPort to their ERP; the template ships with this table so
+// R4 works end-to-end in a fresh clone.
+// ---------------------------------------------------------------------------
+
+model StockLevel {
+  id           String   @id @db.NVarChar(36)
+  tenantId     String   @db.NVarChar(36)
+  sku          String   @db.NVarChar(64)
+  onHandValue  BigInt
+  onHandUom    String   @db.NVarChar(16)
+  version      Int      @default(0)
+  updatedAt    DateTime @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, sku])
+  @@map("stock_level")
+}
+
+// ---------------------------------------------------------------------------
+// Transactional outbox — also serves as R7 audit trail. Every domain event
+// carries actor + fromStatus + toStatus + timestamp, so a single append-only
+// table covers both delivery and audit. ADR 0003 governs the retention +
+// worker semantics; a nightly job archives DELIVERED rows > 90 days old.
+// ---------------------------------------------------------------------------
+
+model OutboxMessage {
+  id                String   @id @db.NVarChar(36)
+  tenantId          String   @db.NVarChar(36)
+  aggregateType     String   @db.NVarChar(64)
+  aggregateId       String   @db.NVarChar(64)
+  eventType         String   @db.NVarChar(128)
+  payload           String   @db.NVarChar(Max)
+  occurredAt        DateTime @db.DateTime2
+  status            String   @db.NVarChar(16)
+  attempts          Int      @default(0)
+  nextAttemptAt     DateTime @db.DateTime2
+  lastError         String?  @db.NVarChar(1024)
+  idempotencyKey    String   @unique @db.NVarChar(128)
+  createdAt         DateTime @default(now()) @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([status, nextAttemptAt])
+  @@index([tenantId, aggregateId])
+  @@index([tenantId, aggregateId, occurredAt])
+  @@map("outbox_message")
+}

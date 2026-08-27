@@ -57,3 +57,8 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # dependency-cruiser output
 /.dependency-cruiser-report
+
+# Prisma
+/prisma/migrations/dev.db
+/prisma/migrations/dev.db-journal
+node_modules/.prisma

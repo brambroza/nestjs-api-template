@@ -6,7 +6,9 @@ import { NotificationModule } from './modules/notification/notification.module';
 import { ProductionOrderModule } from './modules/production-order/production-order.module';
 import { AppClsModule } from './shared/cls';
 import { AppConfigModule } from './shared/config';
+import { DatabaseModule } from './shared/database';
 import { DomainExceptionFilter } from './shared/errors';
+import { HealthModule } from './shared/health';
 import { LoggingInterceptor, TimeoutInterceptor } from './shared/interceptors';
 import { AppLoggerModule } from './shared/logging';
 import { GlobalValidationModule } from './shared/validation/validation.module';
@@ -16,7 +18,9 @@ import { GlobalValidationModule } from './shared/validation/validation.module';
     AppConfigModule,
     AppClsModule,
     AppLoggerModule,
+    DatabaseModule,
     GlobalValidationModule,
+    HealthModule,
     ProductionOrderModule,
     MasterDataModule,
     NotificationModule,
