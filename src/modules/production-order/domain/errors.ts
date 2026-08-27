@@ -84,6 +84,14 @@ export class MaterialShortageError extends DomainError {
   }
 }
 
+export class OrderNotFoundError extends DomainError {
+  readonly code = 'PRODUCTION_ORDER.NOT_FOUND';
+
+  constructor(readonly orderId: OrderId) {
+    super(`Order ${orderId} not found in the current tenant scope`);
+  }
+}
+
 export class OptimisticLockError extends DomainError {
   readonly code = 'PRODUCTION_ORDER.OPTIMISTIC_LOCK';
 

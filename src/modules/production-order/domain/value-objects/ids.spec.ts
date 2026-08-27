@@ -6,9 +6,12 @@ describe('brand id factories', () => {
     ['UserId', () => UserId.of('u')],
     ['OrderId', () => OrderId.of('o')],
     ['Sku', () => Sku.of('s')],
-  ])('%s.of() returns the value unchanged for a non-empty string', (_, make) => {
-    expect(typeof make()).toBe('string');
-  });
+  ])(
+    '%s.of() returns the value unchanged for a non-empty string',
+    (_, make) => {
+      expect(typeof make()).toBe('string');
+    },
+  );
 
   it.each([
     ['TenantId', () => TenantId.of('')],

@@ -61,6 +61,19 @@ export default tseslint.config(
     },
   },
   {
+    files: [
+      '**/*.spec.ts',
+      'test/**/*.ts',
+      'src/**/testing/**/*.ts',
+    ],
+    rules: {
+      '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+    },
+  },
+  {
     files: ['src/modules/*/domain/**/*.ts'],
     ignores: ['src/modules/*/domain/**/*.spec.ts'],
     rules: {
