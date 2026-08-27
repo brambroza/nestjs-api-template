@@ -60,4 +60,24 @@ export default tseslint.config(
       'no-restricted-syntax': 'off',
     },
   },
+  {
+    files: ['src/modules/*/domain/**/*.ts'],
+    ignores: ['src/modules/*/domain/**/*.spec.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "NewExpression[callee.name='Date']",
+          message:
+            'new Date() is forbidden inside domain. Take a Date parameter (Clock port lives in application).',
+        },
+        {
+          selector:
+            "CallExpression[callee.object.name='Date'][callee.property.name='now']",
+          message:
+            'Date.now() is forbidden inside domain. Take a Date parameter (Clock port lives in application).',
+        },
+      ],
+    },
+  },
 );
