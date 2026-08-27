@@ -21,7 +21,8 @@ describe('env.schema', () => {
   });
 
   it('throws with a field-named error when a required variable is missing', () => {
-    const { DATABASE_URL: _dropped, ...rest } = requiredEnv;
+    const rest: Record<string, string> = { ...requiredEnv };
+    delete rest['DATABASE_URL'];
     expect(() => validateEnv(rest)).toThrow(/DATABASE_URL/);
   });
 
@@ -33,7 +34,10 @@ describe('env.schema', () => {
 
   it('rejects a non-numeric PORT', () => {
     expect(() =>
-      validateEnv({ ...requiredEnv, PORT: 'not-a-number' as unknown as string }),
+      validateEnv({
+        ...requiredEnv,
+        PORT: 'not-a-number',
+      }),
     ).toThrow(/PORT/);
   });
 
