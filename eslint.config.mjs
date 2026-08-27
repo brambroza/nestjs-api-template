@@ -55,7 +55,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['src/shared/config/**/*.ts', 'src/main.ts'],
+    files: ['src/shared/config/**/*.ts'],
     rules: {
       'no-restricted-syntax': 'off',
     },
