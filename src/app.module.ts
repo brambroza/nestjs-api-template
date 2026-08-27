@@ -4,6 +4,7 @@ import { APP_FILTER, APP_INTERCEPTOR, Reflector } from '@nestjs/core';
 import { MasterDataModule } from './modules/master-data/master-data.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { ProductionOrderModule } from './modules/production-order/production-order.module';
+import { AuthModule } from './shared/auth';
 import { AppClsModule } from './shared/cls';
 import { AppConfigModule } from './shared/config';
 import { DatabaseModule } from './shared/database';
@@ -19,6 +20,7 @@ import { GlobalValidationModule } from './shared/validation/validation.module';
     AppClsModule,
     AppLoggerModule,
     DatabaseModule,
+    AuthModule,
     GlobalValidationModule,
     HealthModule,
     ProductionOrderModule,

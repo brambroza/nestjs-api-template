@@ -14,10 +14,12 @@ import {
   ApproveOrderUseCase,
   CancelOrderUseCase,
   CreateDraftOrderUseCase,
+  GetOrderUseCase,
   ReleaseOrderUseCase,
   ReportProgressUseCase,
   SubmitOrderUseCase,
 } from './application/use-cases';
+import { ProductionOrderController } from './api/production-order.controller';
 import {
   PrismaBomLookup,
   PrismaInventory,
@@ -37,6 +39,7 @@ import { PrismaTransactionManager } from '../../shared/database';
  * and application layers do not change.
  */
 @Module({
+  controllers: [ProductionOrderController],
   providers: [
     { provide: CLOCK, useClass: SystemClockService },
     { provide: TENANT_CONTEXT, useClass: ClsTenantContextService },
@@ -57,6 +60,7 @@ import { PrismaTransactionManager } from '../../shared/database';
     ReportProgressUseCase,
     CancelOrderUseCase,
     CreateDraftOrderUseCase,
+    GetOrderUseCase,
   ],
   exports: [
     SubmitOrderUseCase,
@@ -65,6 +69,7 @@ import { PrismaTransactionManager } from '../../shared/database';
     ReportProgressUseCase,
     CancelOrderUseCase,
     CreateDraftOrderUseCase,
+    GetOrderUseCase,
     CLOCK,
     TENANT_CONTEXT,
   ],
