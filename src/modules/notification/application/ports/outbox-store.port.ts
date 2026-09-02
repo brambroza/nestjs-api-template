@@ -6,6 +6,8 @@ export interface OutboxRow {
   readonly id: string;
   readonly tenantId: string;
   readonly eventType: string;
+  /** e.g. production_order, approval_request — optional for older rows/tests. */
+  readonly aggregateType?: string;
   readonly aggregateId: string;
   readonly payload: string;
   readonly idempotencyKey: string;

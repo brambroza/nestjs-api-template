@@ -46,6 +46,9 @@ export type Subject =
   | 'TaxCode'
   | 'Account'
   | 'FiscalYear'
+  | 'ApprovalPolicy'
+  | 'ApprovalRequest'
+  | 'ApprovalDelegation'
   | 'all';
 
 export type AppSubjects = InferSubjects<Subject>;

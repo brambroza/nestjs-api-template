@@ -126,5 +126,6 @@ export class OutboxDispatcher {
 }
 
 function renderText(row: OutboxRow): string {
-  return `[${row.eventType}] order ${row.aggregateId}`;
+  const subject = (row.aggregateType ?? 'production_order').replace(/_/g, ' ');
+  return `[${row.eventType}] ${subject} ${row.aggregateId}`;
 }

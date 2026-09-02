@@ -69,8 +69,135 @@ model Tenant {
   accounts                       Account[]
   fiscalYears                    FiscalYear[]
   fiscalPeriods                  FiscalPeriod[]
+  approvalPolicies               ApprovalPolicy[]
+  approvalRequests               ApprovalRequest[]
+  approvalDelegations            ApprovalDelegation[]
 
   @@map("tenant")
+}
+
+// ---------------------------------------------------------------------------
+// Approval framework (EPIC-B.4) — shared by every document type.
+// ---------------------------------------------------------------------------
+
+/// One active policy per (tenant, documentType). Steps run in order;
+/// a step with minAmountMinor applies only when the document amount
+/// reaches it (the "approval matrix" — tiers by amount).
+model ApprovalPolicy {
+  id           String   @id @db.NVarChar(36)
+  tenantId     String   @db.NVarChar(36)
+  /// e.g. SALES_ORDER, PURCHASE_REQUISITION, PURCHASE_ORDER, QUOTATION
+  documentType String   @db.NVarChar(32)
+  name         String   @db.NVarChar(100)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now()) @db.DateTime2
+  updatedAt    DateTime @updatedAt @db.DateTime2
+
+  tenant Tenant               @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  steps  ApprovalPolicyStep[]
+
+  @@index([tenantId, documentType, isActive])
+  @@map("apv_policy")
+}
+
+model ApprovalPolicyStep {
+  id                String  @id @db.NVarChar(36)
+  tenantId          String  @db.NVarChar(36)
+  policyId          String  @db.NVarChar(36)
+  stepNo            Int
+  name              String  @db.NVarChar(100)
+  /// Role NAME (app_role.name) whose members may decide this step.
+  approverRole      String  @db.NVarChar(64)
+  /// Step applies only when amount >= this; NULL = always.
+  minAmountMinor    BigInt?
+  requiredApprovals Int     @default(1)
+
+  policy ApprovalPolicy @relation(fields: [policyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([policyId, stepNo])
+  @@map("apv_policy_step")
+}
+
+/// A document's request for approval. At most one PENDING per document.
+model ApprovalRequest {
+  id            String    @id @db.NVarChar(36)
+  tenantId      String    @db.NVarChar(36)
+  documentType  String    @db.NVarChar(32)
+  documentId    String    @db.NVarChar(36)
+  policyId      String?   @db.NVarChar(36)
+  amountMinor   BigInt
+  currency      String    @db.NVarChar(3)
+  requestedBy   String    @db.NVarChar(64)
+  /// PENDING | APPROVED | REJECTED | CANCELLED
+  status        String    @db.NVarChar(12)
+  currentStepNo Int?
+  createdAt     DateTime  @db.DateTime2
+  resolvedAt    DateTime? @db.DateTime2
+  updatedAt     DateTime  @updatedAt @db.DateTime2
+
+  tenant Tenant                @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  steps  ApprovalRequestStep[]
+
+  @@index([tenantId, documentType, documentId])
+  @@index([tenantId, status])
+  @@map("apv_request")
+}
+
+model ApprovalRequestStep {
+  id                String @id @db.NVarChar(36)
+  tenantId          String @db.NVarChar(36)
+  requestId         String @db.NVarChar(36)
+  stepNo            Int
+  name              String @db.NVarChar(100)
+  approverRole      String @db.NVarChar(64)
+  requiredApprovals Int
+  /// PENDING | APPROVED | REJECTED
+  status            String @db.NVarChar(12)
+
+  request   ApprovalRequest    @relation(fields: [requestId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  decisions ApprovalDecision[]
+
+  @@unique([requestId, stepNo])
+  @@index([tenantId, approverRole, status])
+  @@map("apv_request_step")
+}
+
+model ApprovalDecision {
+  id         String   @id @db.NVarChar(36)
+  tenantId   String   @db.NVarChar(36)
+  stepId     String   @db.NVarChar(36)
+  decidedBy  String   @db.NVarChar(64)
+  /// Set when the decider acted under a delegation from this user.
+  onBehalfOf String?  @db.NVarChar(64)
+  /// APPROVE | REJECT
+  decision   String   @db.NVarChar(8)
+  comment    String?  @db.NVarChar(500)
+  decidedAt  DateTime @db.DateTime2
+
+  step ApprovalRequestStep @relation(fields: [stepId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([tenantId, decidedBy])
+  @@map("apv_decision")
+}
+
+/// "While I am away, B may decide in my place" (T-232). Date-bounded,
+/// revocable; B inherits A's roles for approval eligibility only.
+model ApprovalDelegation {
+  id         String   @id @db.NVarChar(36)
+  tenantId   String   @db.NVarChar(36)
+  fromUserId String   @db.NVarChar(64)
+  toUserId   String   @db.NVarChar(64)
+  fromDate   DateTime @db.Date
+  toDate     DateTime @db.Date
+  reason     String?  @db.NVarChar(200)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now()) @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([tenantId, toUserId, isActive])
+  @@index([tenantId, fromUserId])
+  @@map("apv_delegation")
 }
 
 // ---------------------------------------------------------------------------

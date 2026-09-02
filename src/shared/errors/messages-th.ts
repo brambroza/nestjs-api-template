@@ -143,6 +143,21 @@ export const MESSAGES_TH: Readonly<Record<string, string>> = {
   'FINANCE.FISCAL_YEAR_NOT_READY_TO_CLOSE':
     'ต้องล็อกทุกงวดบัญชีก่อนจึงจะปิดปีบัญชีได้',
   'FINANCE.FISCAL_YEAR_CLOSED': 'ปีบัญชีนี้ปิดแล้ว ไม่สามารถแก้ไขได้',
+
+  'APPROVAL.POLICY_NOT_FOUND': 'ไม่พบนโยบายการอนุมัติที่ระบุ',
+  'APPROVAL.ACTIVE_POLICY_EXISTS':
+    'เอกสารประเภทนี้มีนโยบายการอนุมัติที่ใช้งานอยู่แล้ว',
+  'APPROVAL.INVALID_POLICY': 'ข้อมูลนโยบายการอนุมัติไม่ถูกต้อง',
+  'APPROVAL.REQUEST_NOT_FOUND': 'ไม่พบคำขออนุมัติที่ระบุ',
+  'APPROVAL.NOT_PENDING': 'คำขออนุมัตินี้ดำเนินการเสร็จสิ้นแล้ว',
+  'APPROVAL.PENDING_EXISTS': 'เอกสารนี้มีคำขออนุมัติที่รอดำเนินการอยู่แล้ว',
+  'APPROVAL.NOT_ELIGIBLE': 'คุณไม่มีสิทธิ์อนุมัติขั้นตอนนี้',
+  'APPROVAL.SELF_APPROVAL': 'ผู้ขออนุมัติไม่สามารถอนุมัติเอกสารของตนเองได้',
+  'APPROVAL.ALREADY_DECIDED': 'คุณได้ตัดสินขั้นตอนนี้ไปแล้ว',
+  'APPROVAL.NOT_THE_REQUESTER': 'เฉพาะผู้ขออนุมัติเท่านั้นที่ยกเลิกคำขอได้',
+  'APPROVAL.INVALID_REQUEST': 'ข้อมูลคำขออนุมัติไม่ถูกต้อง',
+  'APPROVAL.DELEGATION_NOT_FOUND': 'ไม่พบการมอบอำนาจที่ระบุ',
+  'APPROVAL.INVALID_DELEGATION': 'ข้อมูลการมอบอำนาจไม่ถูกต้อง',
 };
 
 const FALLBACK_TH = 'เกิดข้อผิดพลาดที่ไม่คาดคิด';

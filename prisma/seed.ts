@@ -121,6 +121,34 @@ async function main(): Promise<void> {
         ],
       },
       {
+        // Approve sales documents; Phase B sales module grants more.
+        id: 'role-sales-manager',
+        name: 'sales-manager',
+        rules: [
+          { action: 'read', subject: 'Customer' },
+          { action: 'read', subject: 'Item' },
+          { action: 'read', subject: 'PriceList' },
+          { action: 'read', subject: 'ApprovalRequest' },
+          { action: 'update', subject: 'ApprovalRequest' },
+          { action: 'read', subject: 'ApprovalDelegation' },
+          { action: 'create', subject: 'ApprovalDelegation' },
+          { action: 'update', subject: 'ApprovalDelegation' },
+        ],
+      },
+      {
+        id: 'role-purchasing-manager',
+        name: 'purchasing-manager',
+        rules: [
+          { action: 'read', subject: 'Vendor' },
+          { action: 'read', subject: 'Item' },
+          { action: 'read', subject: 'ApprovalRequest' },
+          { action: 'update', subject: 'ApprovalRequest' },
+          { action: 'read', subject: 'ApprovalDelegation' },
+          { action: 'create', subject: 'ApprovalDelegation' },
+          { action: 'update', subject: 'ApprovalDelegation' },
+        ],
+      },
+      {
         id: 'role-creator',
         name: 'creator',
         rules: [
@@ -303,6 +331,75 @@ async function main(): Promise<void> {
           name: u.name,
           baseUomCode: u.baseUomCode,
           conversionRatio: u.conversionRatio,
+        },
+      });
+    }
+
+    // Manager: decides SO / PO approvals (Phase B).
+    const managerHash = await hashPassword('manager123!');
+    await prisma.user.upsert({
+      where: { tenantId_email: { tenantId, email: 'manager@demo.local' } },
+      update: { passwordHash: managerHash },
+      create: {
+        id: 'user-manager',
+        tenantId,
+        email: 'manager@demo.local',
+        passwordHash: managerHash,
+        displayName: 'Demo Manager',
+      },
+    });
+    for (const roleId of ['role-sales-manager', 'role-purchasing-manager', 'role-approver']) {
+      await prisma.userRole.upsert({
+        where: { userId_roleId: { userId: 'user-manager', roleId } },
+        update: {},
+        create: { userId: 'user-manager', roleId },
+      });
+    }
+
+    // Approval matrices (EPIC-B.4). Amounts in satang.
+    const policiesSeed = [
+      {
+        id: 'apv-so', documentType: 'SALES_ORDER', name: 'Sales order approval',
+        steps: [
+          { id: 'apv-so-1', stepNo: 1, name: 'Sales manager', approverRole: 'sales-manager', minAmountMinor: null as bigint | null },
+          { id: 'apv-so-2', stepNo: 2, name: 'Finance (>= 500,000)', approverRole: 'finance-admin', minAmountMinor: 500_000_00n as bigint | null },
+        ],
+      },
+      {
+        id: 'apv-pr', documentType: 'PURCHASE_REQUISITION', name: 'PR approval',
+        steps: [
+          { id: 'apv-pr-1', stepNo: 1, name: 'Purchasing manager', approverRole: 'purchasing-manager', minAmountMinor: null as bigint | null },
+        ],
+      },
+      {
+        id: 'apv-po', documentType: 'PURCHASE_ORDER', name: 'PO approval matrix',
+        steps: [
+          { id: 'apv-po-1', stepNo: 1, name: 'Purchasing manager', approverRole: 'purchasing-manager', minAmountMinor: null as bigint | null },
+          { id: 'apv-po-2', stepNo: 2, name: 'Finance (>= 200,000)', approverRole: 'finance-admin', minAmountMinor: 200_000_00n as bigint | null },
+          { id: 'apv-po-3', stepNo: 3, name: 'Admin (>= 2,000,000)', approverRole: 'admin', minAmountMinor: 2_000_000_00n as bigint | null },
+        ],
+      },
+    ];
+    for (const p of policiesSeed) {
+      await prisma.approvalPolicy.upsert({
+        where: { id: p.id },
+        update: { name: p.name, isActive: true },
+        create: {
+          id: p.id,
+          tenantId,
+          documentType: p.documentType,
+          name: p.name,
+          steps: {
+            create: p.steps.map((s) => ({
+              id: s.id,
+              tenantId,
+              stepNo: s.stepNo,
+              name: s.name,
+              approverRole: s.approverRole,
+              minAmountMinor: s.minAmountMinor,
+              requiredApprovals: 1,
+            })),
+          },
         },
       });
     }
@@ -690,6 +787,9 @@ async function main(): Promise<void> {
   Finance: THB/USD/JPY + rates 2026-09-01 (USD 33.1234, JPY 0.2250),
     tax VAT7* VAT0 VAT-EX WHT1 WHT3* WHT5 (* = default), 18-account Thai SME chart,
     FY2026 for co-demo (periods 1-6 LOCKED, 7-12 OPEN)
+  Approval: manager@demo.local / manager123! (sales-manager, purchasing-manager, approver)
+    policies SALES_ORDER (mgr; finance >= 500k), PURCHASE_REQUISITION (mgr),
+    PURCHASE_ORDER (mgr; finance >= 200k; admin >= 2M)
   Partner: CUST-001 has 1 primary contact, 1 default BILLING address, 1 MARKETING consent
   Order: ${orderId} (DRAFT, productSku FIN-A -> master BOM) + 500 KG RAW-A stock`);
   } finally {
