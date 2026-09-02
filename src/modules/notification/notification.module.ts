@@ -5,6 +5,7 @@ import { OutboxDispatcher } from './application/outbox-dispatcher.service';
 import { LINE_MESSAGING } from './application/ports/line-messaging.port';
 import { OUTBOX_STORE } from './application/ports/outbox-store.port';
 import { LineMessagingAdapter } from './infrastructure/line-messaging.adapter';
+import { OutboxReclaimerCron } from './infrastructure/outbox-reclaimer.cron';
 import { OutboxWorkerCron } from './infrastructure/outbox-worker.cron';
 import { PrismaOutboxStore } from './infrastructure/prisma-outbox-store';
 
@@ -15,6 +16,7 @@ import { PrismaOutboxStore } from './infrastructure/prisma-outbox-store';
     { provide: LINE_MESSAGING, useClass: LineMessagingAdapter },
     OutboxDispatcher,
     OutboxWorkerCron,
+    OutboxReclaimerCron,
   ],
   exports: [OutboxDispatcher],
 })

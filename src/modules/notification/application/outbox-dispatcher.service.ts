@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { CLOCK, type Clock } from '../../../shared/clock';
-import type { OutboxConfig } from '../../../shared/config';
+import type { LineConfig, OutboxConfig } from '../../../shared/config';
 import { nextDelayMs } from '../domain/backoff';
 
 import {
@@ -17,21 +17,25 @@ import {
 
 /**
  * Central dispatcher. On each tick (cron: every OUTBOX_POLL_INTERVAL_MS)
- * it claims a batch of PENDING rows, moves them to IN_FLIGHT via
- * optimistic update, and dispatches. Success -> DELIVERED. Transient
- * failure -> increment attempts, schedule next attempt via the ADR
- * 0003 backoff table, or move to DEAD when the max is reached.
+ * it claims a batch of PENDING rows and dispatches. Success -> DELIVERED.
+ * Transient failure -> increment attempts, schedule next attempt via the
+ * ADR 0003 backoff table, or move to DEAD when the max is reached.
+ *
+ * Recipient resolution: reads `LINE_RECIPIENT_MAP` tenant -> LINE id.
+ * A row whose tenant is not in the map is treated as a **permanent**
+ * failure (loud DEAD) rather than being silently sent to a fake id —
+ * ops sees the DEAD row and knows to fix the config.
  *
  * Idempotency: every dispatch sends the row's `idempotencyKey` as the
- * LINE `X-Line-Retry-Key`, so a mid-flight process crash that leaves a
- * row IN_FLIGHT for the stalled-timeout re-lease sends LINE the same
- * key on the retry — LINE treats it as the same push and does not
- * duplicate.
+ * LINE `X-Line-Retry-Key`, so a retry after the stalled-timeout reclaim
+ * (see OutboxReclaimerCron) tells LINE "same push" and duplicates are
+ * dropped at their end.
  */
 @Injectable()
 export class OutboxDispatcher {
   private readonly logger = new Logger(OutboxDispatcher.name);
   private readonly maxAttempts: number;
+  private readonly recipientByTenant: Readonly<Record<string, string>>;
   private readonly batchSize = 25;
   private running = false;
 
@@ -42,6 +46,8 @@ export class OutboxDispatcher {
     config: ConfigService,
   ) {
     this.maxAttempts = config.getOrThrow<OutboxConfig>('outbox').maxAttempts;
+    this.recipientByTenant =
+      config.getOrThrow<LineConfig>('line').recipientByTenant;
   }
 
   async tick(): Promise<void> {
@@ -59,9 +65,24 @@ export class OutboxDispatcher {
   }
 
   private async dispatchOne(row: OutboxRow): Promise<void> {
+    const recipient = this.recipientByTenant[row.tenantId];
+    if (!recipient) {
+      await this.store.markFailure(
+        row.id,
+        row.attempts + 1,
+        null,
+        `permanent: LINE_RECIPIENT_MAP has no entry for tenant "${row.tenantId}"`,
+      );
+      this.logger.error(
+        { tenantId: row.tenantId, id: row.id },
+        'outbox has no LINE recipient for tenant -> DEAD',
+      );
+      return;
+    }
+
     try {
       const outcome = await this.line.push({
-        to: extractRecipient(row),
+        to: recipient,
         text: renderText(row),
         idempotencyKey: row.idempotencyKey,
       });
@@ -73,7 +94,7 @@ export class OutboxDispatcher {
         await this.store.markFailure(
           row.id,
           row.attempts + 1,
-          null, // permanent = DEAD immediately, no more retries
+          null,
           `permanent: ${outcome.reason}`,
         );
         this.logger.warn(
@@ -102,18 +123,6 @@ export class OutboxDispatcher {
       );
     }
   }
-}
-
-/**
- * Render helpers stay small and text-only for the template. Real users
- * hook a template engine here — the domain event already carries every
- * datum needed.
- */
-function extractRecipient(row: OutboxRow): string {
-  // Production sends to a LINE user id or a group id. The template's
-  // seed inserts a placeholder recipient per tenant so nothing panics
-  // when the worker actually fires.
-  return `line:tenant/${row.tenantId}`;
 }
 
 function renderText(row: OutboxRow): string {

@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { ClsService } from 'nestjs-cls';
 
+import type { AppClsStore } from '../../../../shared/cls';
 import { PrismaTransactionManager } from '../../../../shared/database';
 import {
   type MaterialShortageItem,
@@ -17,31 +19,49 @@ import type {
 type InventoryClient = Pick<Prisma.TransactionClient, 'stockLevel'>;
 
 /**
- * Prisma-backed inventory. Since it runs inside the same transaction as
- * the release use case, `updateMany` with a `version` guard atomically
- * moves stock — a concurrent release either succeeds first (leaving the
- * loser with 0 rows affected → we re-read and report shortage) or loses
- * to it. Not a real reservation ledger; that would be a separate table
- * with hold/commit semantics. This template ships the minimum that lets
- * R4 pass e2e; replace the class in ProductionOrderModule wiring for
- * ERP integration.
+ * Prisma-backed inventory. Runs inside the same transaction as the
+ * release use case so `updateMany` with a `version` guard is atomic.
+ *
+ * TENANT SCOPE (R10): every read + write includes `tenantId` from CLS.
+ * The StockLevel table has `@@unique([tenantId, sku])`, so a bare
+ * `where: { sku }` would silently pick another tenant's row — a bug
+ * caught by the Phase 5 review and fixed here.
+ *
+ * Not a real reservation ledger; that would be a separate table with
+ * hold/commit semantics. This template ships the minimum that lets R4
+ * pass e2e; replace the class in ProductionOrderModule wiring for ERP
+ * integration.
  */
 @Injectable()
 export class PrismaInventory implements InventoryPort {
-  constructor(private readonly tx: PrismaTransactionManager) {}
+  constructor(
+    private readonly tx: PrismaTransactionManager,
+    private readonly cls: ClsService<AppClsStore>,
+  ) {}
+
+  private tenantId(): string {
+    const tid = this.cls.get('tenantId');
+    if (!tid) {
+      throw new Error(
+        'PrismaInventory accessed without a tenantId in CLS. R10 violation.',
+      );
+    }
+    return tid;
+  }
 
   async reserve(
     orderId: OrderId,
     requirements: readonly InventoryRequirement[],
   ): Promise<ReservationOutcome> {
     const client = this.tx.getClient() as unknown as InventoryClient;
+    const tenantId = this.tenantId();
 
     const shortages: MaterialShortageItem[] = [];
     const debits: Array<{ id: string; version: number; newValue: bigint }> = [];
 
     for (const r of requirements) {
       const row = await client.stockLevel.findFirst({
-        where: { sku: r.sku },
+        where: { tenantId, sku: r.sku },
       });
       const available = row
         ? Quantity.of(row.onHandValue, row.onHandUom)
@@ -68,12 +88,10 @@ export class PrismaInventory implements InventoryPort {
 
     for (const d of debits) {
       const result = await client.stockLevel.updateMany({
-        where: { id: d.id, version: d.version },
+        where: { id: d.id, tenantId, version: d.version },
         data: { onHandValue: d.newValue, version: d.version + 1 },
       });
       if (result.count === 0) {
-        // Someone else consumed the stock between read and write within
-        // this tx (should be blocked by isolation; treat as shortage).
         return {
           kind: 'shortage',
           shortages: [

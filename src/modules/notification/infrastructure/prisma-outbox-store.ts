@@ -9,18 +9,16 @@ import type {
 } from '../application/ports/outbox-store.port';
 
 /**
- * Read/write side of `outbox_message`. The write side used by
- * production-order (PrismaOutbox in production-order/infrastructure)
- * inserts PENDING rows inside the domain transaction; this store
- * drives dispatch and updates status.
+ * Read/write side of `outbox_message`. Write path is owned by
+ * production-order's PrismaOutbox (rows land inside the domain tx);
+ * this store leases them, records terminal state, and reclaims rows
+ * stuck IN_FLIGHT after a worker crash (ADR 0003 §2.3).
  */
 @Injectable()
 export class PrismaOutboxStore implements OutboxStore {
   constructor(private readonly prisma: PrismaService) {}
 
   async claimPending(now: Date, limit: number): Promise<ClaimResult> {
-    // Read candidates first, then move to IN_FLIGHT with a version-safe
-    // updateMany so two workers cannot lease the same row.
     const candidates = await this.prisma.outboxMessage.findMany({
       where: {
         status: 'PENDING',
@@ -44,7 +42,7 @@ export class PrismaOutboxStore implements OutboxStore {
     for (const c of candidates) {
       const result = await this.prisma.outboxMessage.updateMany({
         where: { id: c.id, status: 'PENDING' },
-        data: { status: 'IN_FLIGHT' },
+        data: { status: 'IN_FLIGHT', leasedAt: now },
       });
       if (result.count === 1) {
         leased.push({
@@ -68,6 +66,7 @@ export class PrismaOutboxStore implements OutboxStore {
       data: {
         status: 'DELIVERED',
         nextAttemptAt: deliveredAt,
+        leasedAt: null,
         lastError: null,
       },
     });
@@ -85,8 +84,23 @@ export class PrismaOutboxStore implements OutboxStore {
         status: nextAttemptAt === null ? 'DEAD' : 'PENDING',
         attempts: attemptNumber,
         nextAttemptAt: nextAttemptAt ?? new Date(),
+        leasedAt: null,
         lastError: lastError.slice(0, 1024),
       },
     });
+  }
+
+  async reclaimStalled(staleBefore: Date): Promise<number> {
+    const result = await this.prisma.outboxMessage.updateMany({
+      where: {
+        status: 'IN_FLIGHT',
+        leasedAt: { lt: staleBefore },
+      },
+      data: {
+        status: 'PENDING',
+        leasedAt: null,
+      },
+    });
+    return result.count;
   }
 }

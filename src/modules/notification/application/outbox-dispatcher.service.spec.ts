@@ -74,6 +74,12 @@ class InMemoryOutboxStore implements OutboxStore {
       });
     }
   }
+
+  async reclaimStalled(): Promise<number> {
+    // Dispatcher tests don't drive time-based reclaim; the dedicated
+    // reclaimer test constructs its own store.
+    return 0;
+  }
 }
 
 class SpyLine implements LineMessagingPort {
@@ -103,9 +109,20 @@ function makeDispatcher(
   line: LineMessagingPort,
   clock: Clock,
   maxAttempts = 7,
+  recipientByTenant: Record<string, string> = { 'tenant-a': 'Uxxx' },
 ): OutboxDispatcher {
   const config = {
-    getOrThrow: () => ({ maxAttempts, pollIntervalMs: 5000 }),
+    getOrThrow: (key: string) => {
+      if (key === 'outbox') return { maxAttempts, pollIntervalMs: 5000 };
+      if (key === 'line')
+        return {
+          channelAccessToken: 'x',
+          channelSecret: 'y',
+          apiBaseUrl: 'https://api.line.me',
+          recipientByTenant,
+        };
+      throw new Error(`unexpected config key: ${key}`);
+    },
   } as unknown as ConfigService;
   return new OutboxDispatcher(store, line, clock, config);
 }
@@ -208,6 +225,27 @@ describe('OutboxDispatcher (ADR 0003)', () => {
     expect(f.attempts).toBe(1);
     expect(f.nextAttemptAt).not.toBeNull();
     expect(f.reason).toMatch(/ECONNRESET/);
+  });
+
+  it('rows for a tenant with no recipient mapping go straight to DEAD (fail-loud, not silent)', async () => {
+    const store = new InMemoryOutboxStore();
+    store.seed(makeRow({ tenantId: 'tenant-unmapped' }));
+    const line = new SpyLine([{ kind: 'sent' }]);
+    const dispatcher = makeDispatcher(
+      store,
+      line,
+      new FixedClock(now),
+      7,
+      { 'tenant-a': 'Uxxx' }, // tenant-unmapped absent on purpose
+    );
+
+    await dispatcher.tick();
+
+    expect(line.seen).toHaveLength(0);
+    const f = store.failures[0]!;
+    expect(f.nextAttemptAt).toBeNull();
+    expect(f.reason).toMatch(/LINE_RECIPIENT_MAP/);
+    expect(store.rows.get('row-1')?.status).toBe('DEAD');
   });
 
   it('reentrant tick is a no-op while another tick is running', async () => {

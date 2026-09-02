@@ -167,23 +167,28 @@ model StockLevel {
 // ---------------------------------------------------------------------------
 
 model OutboxMessage {
-  id                String   @id @db.NVarChar(36)
-  tenantId          String   @db.NVarChar(36)
-  aggregateType     String   @db.NVarChar(64)
-  aggregateId       String   @db.NVarChar(64)
-  eventType         String   @db.NVarChar(128)
-  payload           String   @db.NVarChar(Max)
-  occurredAt        DateTime @db.DateTime2
-  status            String   @db.NVarChar(16)
-  attempts          Int      @default(0)
-  nextAttemptAt     DateTime @db.DateTime2
-  lastError         String?  @db.NVarChar(1024)
-  idempotencyKey    String   @unique @db.NVarChar(128)
-  createdAt         DateTime @default(now()) @db.DateTime2
+  id                String    @id @db.NVarChar(36)
+  tenantId          String    @db.NVarChar(36)
+  aggregateType     String    @db.NVarChar(64)
+  aggregateId       String    @db.NVarChar(64)
+  eventType         String    @db.NVarChar(128)
+  payload           String    @db.NVarChar(Max)
+  occurredAt        DateTime  @db.DateTime2
+  status            String    @db.NVarChar(16)
+  attempts          Int       @default(0)
+  nextAttemptAt     DateTime  @db.DateTime2
+  /// When the current IN_FLIGHT lease started. Cleared on DELIVERED /
+  /// DEAD. A separate cron reclaims rows whose leasedAt is older than
+  /// the stalled timeout (ADR 0003 §2.3).
+  leasedAt          DateTime? @db.DateTime2
+  lastError         String?   @db.NVarChar(1024)
+  idempotencyKey    String    @unique @db.NVarChar(128)
+  createdAt         DateTime  @default(now()) @db.DateTime2
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([status, nextAttemptAt])
+  @@index([status, leasedAt])
   @@index([tenantId, aggregateId])
   @@index([tenantId, aggregateId, occurredAt])
   @@map("outbox_message")

@@ -74,16 +74,13 @@ export function toDomain(
   return ProductionOrder.fromSnapshot(snapshot);
 }
 
-/** Extract fields for a write path, without touching version — the repo
- * decides the new version so the optimistic-lock check stays there. */
-export function fromDomain(order: ProductionOrder): {
+/**
+ * Fields for a fresh INSERT (includes createdBy + createdAt — set once,
+ * immutable thereafter). The repo picks the initial version.
+ */
+export function insertShape(order: ProductionOrder): {
   data: Omit<PrismaProductionOrder, 'version'>;
-  newProgress: readonly {
-    quantityValue: bigint;
-    quantityUom: string;
-    reportedBy: string;
-    reportedAt: Date;
-  }[];
+  newProgress: readonly ProgressRow[];
 } {
   const snap = order.snapshot();
   return {
@@ -103,11 +100,56 @@ export function fromDomain(order: ProductionOrder): {
       createdAt: snap.createdAt,
       updatedAt: snap.updatedAt,
     },
-    newProgress: snap.progressReports.map((r) => ({
-      quantityValue: r.quantity.value,
-      quantityUom: r.quantity.uom,
-      reportedBy: r.by,
-      reportedAt: r.at,
-    })),
+    newProgress: progressRows(snap.progressReports),
   };
+}
+
+/**
+ * Fields safe to overwrite on UPDATE. Deliberately excludes id,
+ * tenantId, createdBy, createdAt — those are immutable after INSERT.
+ * If a future aggregate change accidentally mutated createdBy, the DB
+ * would previously overwrite silently; now the field simply isn't
+ * present in the update payload.
+ */
+export function updateShape(order: ProductionOrder): {
+  data: Omit<
+    PrismaProductionOrder,
+    'id' | 'tenantId' | 'createdBy' | 'createdAt' | 'version'
+  >;
+  newProgress: readonly ProgressRow[];
+} {
+  const snap = order.snapshot();
+  return {
+    data: {
+      status: snap.status,
+      orderedQuantityValue: snap.orderedQuantity.value,
+      orderedQuantityUom: snap.orderedQuantity.uom,
+      totalAmountSatang: snap.totalAmount.amount,
+      totalAmountCurrency: snap.totalAmount.currency,
+      firstApprover: snap.firstApprover ?? null,
+      secondApprover: snap.secondApprover ?? null,
+      producedQuantityValue: snap.producedQuantity.value,
+      producedQuantityUom: snap.producedQuantity.uom,
+      updatedAt: snap.updatedAt,
+    },
+    newProgress: progressRows(snap.progressReports),
+  };
+}
+
+interface ProgressRow {
+  readonly quantityValue: bigint;
+  readonly quantityUom: string;
+  readonly reportedBy: string;
+  readonly reportedAt: Date;
+}
+
+function progressRows(
+  reports: ProductionOrderSnapshot['progressReports'],
+): readonly ProgressRow[] {
+  return reports.map((r) => ({
+    quantityValue: r.quantity.value,
+    quantityUom: r.quantity.uom,
+    reportedBy: r.by,
+    reportedAt: r.at,
+  }));
 }

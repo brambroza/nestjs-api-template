@@ -9,7 +9,7 @@ import { PrismaTransactionManager } from '../../../../shared/database';
 import { OptimisticLockError, OrderId, ProductionOrder } from '../../domain';
 import type { ProductionOrderRepository } from '../../application/ports/production-order.repository';
 
-import { fromDomain, toDomain } from './production-order.mapping';
+import { insertShape, toDomain, updateShape } from './production-order.mapping';
 
 type OrderClient = Pick<
   Prisma.TransactionClient,
@@ -62,7 +62,6 @@ export class PrismaProductionOrderRepository implements ProductionOrderRepositor
 
   async save(entity: ProductionOrder): Promise<void> {
     const client = this.client();
-    const { data, newProgress } = fromDomain(entity);
 
     // First-time insert vs. update: identify by version === 0 and no
     // existing row (findFirst is safe under the current transaction).
@@ -72,14 +71,21 @@ export class PrismaProductionOrderRepository implements ProductionOrderRepositor
         select: { id: true },
       });
       if (!existing) {
+        const insert = insertShape(entity);
         await client.productionOrder.create({
-          data: { ...data, version: 1 },
+          data: { ...insert.data, version: 1 },
         });
-        await this.syncProgress(entity.id, entity.tenantId, newProgress, 0);
+        await this.syncProgress(
+          entity.id,
+          entity.tenantId,
+          insert.newProgress,
+          0,
+        );
         return;
       }
     }
 
+    const { data: updateData, newProgress } = updateShape(entity);
     const expectedVersion = entity.version;
     const result = await client.productionOrder.updateMany({
       where: {
@@ -87,7 +93,7 @@ export class PrismaProductionOrderRepository implements ProductionOrderRepositor
         tenantId: entity.tenantId,
         version: expectedVersion,
       },
-      data: { ...data, version: expectedVersion + 1 },
+      data: { ...updateData, version: expectedVersion + 1 },
     });
     if (result.count === 0) {
       const actual = await client.productionOrder.findFirst({

@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import type { Prisma } from '@prisma/client';
 
 import type { TenantDefaultsConfig } from '../../../../shared/config';
-import { PrismaService } from '../../../../shared/database';
+import { PrismaTransactionManager } from '../../../../shared/database';
 import {
   type TenantId,
   tolerancePolicy,
@@ -10,15 +11,23 @@ import {
 } from '../../domain';
 import type { TolerancePolicyProvider } from '../../application/ports/tolerance-policy.port';
 
+type TenantReadClient = Pick<Prisma.TransactionClient, 'tenant'>;
+
+/**
+ * Reads via `tx.getClient()` so the read joins the same transaction as
+ * the calling use case — ADR 0002 §3.5 invariant. Fixed as part of the
+ * Phase 5 review.
+ */
 @Injectable()
 export class PrismaTenantToleranceProvider implements TolerancePolicyProvider {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly tx: PrismaTransactionManager,
     private readonly config: ConfigService,
   ) {}
 
   async forTenant(tenantId: TenantId): Promise<TolerancePolicy> {
-    const row = await this.prisma.tenant.findUnique({
+    const client = this.tx.getClient() as unknown as TenantReadClient;
+    const row = await client.tenant.findUnique({
       where: { id: tenantId },
       select: {
         overToleranceBasisPoints: true,

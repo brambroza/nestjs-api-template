@@ -48,6 +48,13 @@ export const EnvSchema = z.object({
   LINE_CHANNEL_ACCESS_TOKEN: nonEmpty,
   LINE_CHANNEL_SECRET: nonEmpty,
   LINE_API_BASE_URL: nonEmpty.default('https://api.line.me'),
+  /**
+   * Comma-separated tenant→recipient map: `tenant-a=Uxxxxx,tenant-b=Cxxxxx`.
+   * Each right-hand side is a LINE user id (starts with U) or group id
+   * (starts with C). If empty, the outbox worker refuses to boot in
+   * production so we never DEAD-letter every message silently.
+   */
+  LINE_RECIPIENT_MAP: z.string().trim().default(''),
 
   DEFAULT_DUAL_APPROVAL_THRESHOLD_SATANG: bigintFromString(50_000_000n),
   DEFAULT_OVER_TOLERANCE_BASIS_POINTS: bigintFromString(500n),
