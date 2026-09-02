@@ -6,6 +6,7 @@ import { NotificationModule } from './modules/notification/notification.module';
 import { ProductionOrderModule } from './modules/production-order/production-order.module';
 import { AuthModule } from './shared/auth';
 import { AppClsModule } from './shared/cls';
+import { ClockModule } from './shared/clock';
 import { AppConfigModule } from './shared/config';
 import { DatabaseModule } from './shared/database';
 import { DomainExceptionFilter } from './shared/errors';
@@ -18,6 +19,7 @@ import { GlobalValidationModule } from './shared/validation/validation.module';
   imports: [
     AppConfigModule,
     AppClsModule,
+    ClockModule,
     AppLoggerModule,
     DatabaseModule,
     AuthModule,
