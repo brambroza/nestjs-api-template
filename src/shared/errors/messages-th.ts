@@ -188,6 +188,31 @@ export const MESSAGES_TH: Readonly<Record<string, string>> = {
     'ไม่สามารถเปลี่ยนสถานะใบส่งสินค้าจากสถานะปัจจุบันได้',
   'SALES.INVALID_DELIVERY_NOTE': 'ข้อมูลใบส่งสินค้าไม่ถูกต้อง',
   'DOMAIN.INVALID_DOCUMENT_LINE': 'ข้อมูลรายการสินค้าในเอกสารไม่ถูกต้อง',
+
+  'PURCHASE.REF_INVALID':
+    'ข้อมูลอ้างอิง (บริษัท/ผู้ขาย/สินค้า/คลัง/สกุลเงิน) ไม่ถูกต้อง',
+  'PURCHASE.VERSION_CONFLICT':
+    'เอกสารถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณาโหลดใหม่แล้วลองอีกครั้ง',
+  'PURCHASE.APPROVAL_PENDING': 'เอกสารยังรอการอนุมัติอยู่',
+  'PURCHASE.OVER_RECEIPT': 'จำนวนที่รับเกินจำนวนคงเหลือในใบสั่งซื้อ',
+  'PURCHASE.REQUISITION_NOT_FOUND': 'ไม่พบใบขอซื้อที่ระบุ',
+  'PURCHASE.ILLEGAL_REQUISITION_TRANSITION':
+    'ไม่สามารถเปลี่ยนสถานะใบขอซื้อจากสถานะปัจจุบันได้',
+  'PURCHASE.REQUISITION_NOT_EDITABLE': 'แก้ไขได้เฉพาะใบขอซื้อสถานะร่างเท่านั้น',
+  'PURCHASE.INVALID_REQUISITION': 'ข้อมูลใบขอซื้อไม่ถูกต้อง',
+  'PURCHASE.REQUISITION_NOT_CONVERTIBLE':
+    'ใบขอซื้อนี้ไม่สามารถแปลงเป็นใบสั่งซื้อได้ (ต้องได้รับอนุมัติและยังไม่เคยแปลง)',
+  'PURCHASE.ORDER_NOT_FOUND': 'ไม่พบใบสั่งซื้อที่ระบุ',
+  'PURCHASE.ILLEGAL_ORDER_TRANSITION':
+    'ไม่สามารถเปลี่ยนสถานะใบสั่งซื้อจากสถานะปัจจุบันได้',
+  'PURCHASE.ORDER_NOT_EDITABLE': 'แก้ไขได้เฉพาะใบสั่งซื้อสถานะร่างเท่านั้น',
+  'PURCHASE.INVALID_ORDER': 'ข้อมูลใบสั่งซื้อไม่ถูกต้อง',
+  'PURCHASE.ORDER_HAS_RECEIPTS':
+    'ใบสั่งซื้อนี้มีการรับสินค้าแล้ว ไม่สามารถยกเลิกได้',
+  'PURCHASE.GOODS_RECEIPT_NOT_FOUND': 'ไม่พบใบรับสินค้าที่ระบุ',
+  'PURCHASE.ILLEGAL_GOODS_RECEIPT_TRANSITION':
+    'ไม่สามารถเปลี่ยนสถานะใบรับสินค้าจากสถานะปัจจุบันได้',
+  'PURCHASE.INVALID_GOODS_RECEIPT': 'ข้อมูลใบรับสินค้าไม่ถูกต้อง',
 };
 
 const FALLBACK_TH = 'เกิดข้อผิดพลาดที่ไม่คาดคิด';

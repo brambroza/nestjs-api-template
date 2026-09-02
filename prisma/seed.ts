@@ -142,6 +142,9 @@ async function main(): Promise<void> {
         id: 'role-purchasing-manager',
         name: 'purchasing-manager',
         rules: [
+          { action: 'manage', subject: 'PurchaseRequisition' },
+          { action: 'manage', subject: 'PurchaseOrder' },
+          { action: 'manage', subject: 'GoodsReceipt' },
           { action: 'read', subject: 'Vendor' },
           { action: 'read', subject: 'Item' },
           { action: 'read', subject: 'ApprovalRequest' },
@@ -170,6 +173,22 @@ async function main(): Promise<void> {
         ],
       },
       {
+        id: 'role-purchaser',
+        name: 'purchaser',
+        rules: [
+          { action: 'manage', subject: 'PurchaseRequisition' },
+          { action: 'manage', subject: 'PurchaseOrder' },
+          { action: 'manage', subject: 'GoodsReceipt' },
+          { action: 'read', subject: 'Company' },
+          { action: 'read', subject: 'Vendor' },
+          { action: 'read', subject: 'Item' },
+          { action: 'read', subject: 'Uom' },
+          { action: 'read', subject: 'Warehouse' },
+          { action: 'read', subject: 'TaxCode' },
+          { action: 'read', subject: 'Currency' },
+        ],
+      },
+      {
         id: 'role-creator',
         name: 'creator',
         rules: [
@@ -177,6 +196,7 @@ async function main(): Promise<void> {
           { action: 'read', subject: 'ProductionOrder' },
           { action: 'submit', subject: 'ProductionOrderSubmit' },
           { action: 'cancel', subject: 'ProductionOrderCancel' },
+          { action: 'manage', subject: 'PurchaseRequisition' },
           { action: 'read', subject: 'Company' },
           { action: 'read', subject: 'Branch' },
           { action: 'read', subject: 'Warehouse' },
@@ -394,6 +414,25 @@ async function main(): Promise<void> {
       where: { userId_roleId: { userId: 'user-sales', roleId: 'role-sales' } },
       update: {},
       create: { userId: 'user-sales', roleId: 'role-sales' },
+    });
+
+    // Buyer: owns purchase orders and goods receipts (EPIC-B.3).
+    const buyerHash = await hashPassword('buyer123!');
+    await prisma.user.upsert({
+      where: { tenantId_email: { tenantId, email: 'buyer@demo.local' } },
+      update: { passwordHash: buyerHash },
+      create: {
+        id: 'user-buyer',
+        tenantId,
+        email: 'buyer@demo.local',
+        passwordHash: buyerHash,
+        displayName: 'Demo Buyer',
+      },
+    });
+    await prisma.userRole.upsert({
+      where: { userId_roleId: { userId: 'user-buyer', roleId: 'role-purchaser' } },
+      update: {},
+      create: { userId: 'user-buyer', roleId: 'role-purchaser' },
     });
 
     // Approval matrices (EPIC-B.4). Amounts in satang.
@@ -873,7 +912,7 @@ async function main(): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(`Seeded tenant "${tenantId}".
   Roles: admin, master-data-editor, pdpa-officer, finance-admin, sales, sales-manager,
-    purchasing-manager, creator, approver, planner, shopfloor
+    purchaser, purchasing-manager, creator, approver, planner, shopfloor
   Users:
     admin@demo.local / admin123!    (roles: admin)
     operator@demo.local / operator123!  (roles: creator, planner, shopfloor)
@@ -891,6 +930,7 @@ async function main(): Promise<void> {
   Sales: sales@demo.local / sales123! (sales) — quotation QT-202609-0001 rev 1 DRAFT
     (10 x FIN-A @ 1,400.00 + VAT 7% = 14,980.00, valid until 2026-09-30)
     Sales orders: POST /sales-orders (direct or quotationId), submit -> credit check + SALES_ORDER policy
+  Purchase: buyer@demo.local / buyer123! (purchaser) — PR (creator/purchaser) -> PO -> GRN with lot capture
   Partner: CUST-001 has 1 primary contact, 1 default BILLING address, 1 MARKETING consent
   Order: ${orderId} (DRAFT, productSku FIN-A -> master BOM) + 500 KG RAW-A stock`);
   } finally {

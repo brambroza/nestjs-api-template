@@ -79,6 +79,12 @@ model Tenant {
   salesOrderLines                SalesOrderLine[]
   deliveryNotes                  DeliveryNote[]
   deliveryNoteLines              DeliveryNoteLine[]
+  purchaseRequisitions           PurchaseRequisition[]
+  purchaseRequisitionLines       PurchaseRequisitionLine[]
+  purchaseOrders                 PurchaseOrder[]
+  purchaseOrderLines             PurchaseOrderLine[]
+  goodsReceipts                  GoodsReceipt[]
+  goodsReceiptLines              GoodsReceiptLine[]
 
   @@map("tenant")
 }
@@ -1190,4 +1196,179 @@ model DeliveryNoteLine {
   @@unique([deliveryNoteId, lineNo])
   @@index([tenantId, salesOrderLineId])
   @@map("sls_delivery_note_line")
+}
+
+// ---------------------------------------------------------------------------
+// Purchase — Requisition, Purchase Order, Goods Receipt (EPIC-B.3)
+// ---------------------------------------------------------------------------
+
+/// Status: DRAFT | PENDING_APPROVAL | APPROVED | REJECTED | CANCELLED | CONVERTED.
+/// Estimated amounts only; the PO carries the real prices.
+model PurchaseRequisition {
+  id                  String    @id @db.NVarChar(36)
+  tenantId            String    @db.NVarChar(36)
+  companyId           String    @db.NVarChar(36)
+  number              String    @db.NVarChar(24)
+  requesterId         String    @db.NVarChar(64)
+  neededByDate        DateTime? @db.Date
+  purpose             String?   @db.NVarChar(500)
+  status              String    @db.NVarChar(20)
+  currency            String    @db.NVarChar(3)
+  estimatedTotalMinor BigInt
+  approvalRequestId   String?   @db.NVarChar(36)
+  purchaseOrderId     String?   @db.NVarChar(36)
+  version             Int       @default(0)
+  createdBy           String    @db.NVarChar(64)
+  submittedAt         DateTime? @db.DateTime2
+  resolvedAt          DateTime? @db.DateTime2
+  createdAt           DateTime  @db.DateTime2
+  updatedAt           DateTime  @updatedAt @db.DateTime2
+
+  tenant Tenant                    @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lines  PurchaseRequisitionLine[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@index([tenantId, requesterId])
+  @@map("pur_requisition")
+}
+
+model PurchaseRequisitionLine {
+  id                      String  @id @db.NVarChar(36)
+  tenantId                String  @db.NVarChar(36)
+  requisitionId           String  @db.NVarChar(36)
+  lineNo                  Int
+  itemId                  String  @db.NVarChar(36)
+  itemSku                 String  @db.NVarChar(64)
+  description             String  @db.NVarChar(200)
+  uomCode                 String  @db.NVarChar(16)
+  quantity                BigInt
+  estimatedUnitPriceMinor BigInt  @default(0)
+  estimatedTotalMinor     BigInt  @default(0)
+  suggestedVendorId       String? @db.NVarChar(36)
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  requisition PurchaseRequisition @relation(fields: [requisitionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([requisitionId, lineNo])
+  @@index([tenantId, itemId])
+  @@map("pur_requisition_line")
+}
+
+/// Status: DRAFT | PENDING_APPROVAL | ISSUED | PARTIALLY_RECEIVED | RECEIVED |
+/// REJECTED | CANCELLED. Money in minor units of `currency`.
+model PurchaseOrder {
+  id                String    @id @db.NVarChar(36)
+  tenantId          String    @db.NVarChar(36)
+  companyId         String    @db.NVarChar(36)
+  number            String    @db.NVarChar(24)
+  requisitionId     String?   @db.NVarChar(36)
+  vendorId          String    @db.NVarChar(36)
+  currency          String    @db.NVarChar(3)
+  orderDate         DateTime  @db.Date
+  expectedDate      DateTime? @db.Date
+  status            String    @db.NVarChar(20)
+  paymentTermsDays  Int
+  notes             String?   @db.NVarChar(Max)
+  subtotalMinor     BigInt
+  discountMinor     BigInt
+  taxMinor          BigInt
+  totalMinor        BigInt
+  approvalRequestId String?   @db.NVarChar(36)
+  version           Int       @default(0)
+  createdBy         String    @db.NVarChar(64)
+  submittedAt       DateTime? @db.DateTime2
+  issuedAt          DateTime? @db.DateTime2
+  resolvedAt        DateTime? @db.DateTime2
+  cancelReason      String?   @db.NVarChar(500)
+  createdAt         DateTime  @db.DateTime2
+  updatedAt         DateTime  @updatedAt @db.DateTime2
+
+  tenant   Tenant              @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lines    PurchaseOrderLine[]
+  receipts GoodsReceipt[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, vendorId, status])
+  @@index([tenantId, status])
+  @@map("pur_order")
+}
+
+model PurchaseOrderLine {
+  id              String  @id @db.NVarChar(36)
+  tenantId        String  @db.NVarChar(36)
+  purchaseOrderId String  @db.NVarChar(36)
+  lineNo          Int
+  itemId          String  @db.NVarChar(36)
+  itemSku         String  @db.NVarChar(64)
+  description     String  @db.NVarChar(200)
+  uomCode         String  @db.NVarChar(16)
+  quantity        BigInt
+  receivedQty     BigInt  @default(0)
+  unitPriceMinor  BigInt
+  priceSource     String  @db.NVarChar(12)
+  priceListId     String? @db.NVarChar(36)
+  discountBp      Int     @default(0)
+  discountMinor   BigInt
+  netMinor        BigInt
+  taxCodeId       String  @db.NVarChar(36)
+  taxCode         String  @db.NVarChar(16)
+  taxRateBp       Int
+  taxMinor        BigInt
+  totalMinor      BigInt
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  purchaseOrder PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([purchaseOrderId, lineNo])
+  @@index([tenantId, itemId])
+  @@map("pur_order_line")
+}
+
+/// Status: DRAFT | POSTED | CANCELLED. Posting captures receivedQty (and
+/// lot / expiry for LOT-tracked items) on the PO lines. Stock is Phase C.
+model GoodsReceipt {
+  id                String    @id @db.NVarChar(36)
+  tenantId          String    @db.NVarChar(36)
+  purchaseOrderId   String    @db.NVarChar(36)
+  number            String    @db.NVarChar(24)
+  status            String    @db.NVarChar(12)
+  receiptDate       DateTime  @db.Date
+  warehouseId       String    @db.NVarChar(36)
+  vendorDeliveryRef String?   @db.NVarChar(64)
+  notes             String?   @db.NVarChar(Max)
+  version           Int       @default(0)
+  createdBy         String    @db.NVarChar(64)
+  postedAt          DateTime? @db.DateTime2
+  createdAt         DateTime  @db.DateTime2
+  updatedAt         DateTime  @updatedAt @db.DateTime2
+
+  tenant        Tenant             @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  purchaseOrder PurchaseOrder      @relation(fields: [purchaseOrderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lines         GoodsReceiptLine[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, purchaseOrderId])
+  @@map("pur_goods_receipt")
+}
+
+model GoodsReceiptLine {
+  id                  String    @id @db.NVarChar(36)
+  tenantId            String    @db.NVarChar(36)
+  goodsReceiptId      String    @db.NVarChar(36)
+  lineNo              Int
+  purchaseOrderLineId String    @db.NVarChar(36)
+  itemId              String    @db.NVarChar(36)
+  itemSku             String    @db.NVarChar(64)
+  uomCode             String    @db.NVarChar(16)
+  quantity            BigInt
+  lotNumber           String?   @db.NVarChar(64)
+  expiryDate          DateTime? @db.Date
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  goodsReceipt GoodsReceipt @relation(fields: [goodsReceiptId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([goodsReceiptId, lineNo])
+  @@index([tenantId, purchaseOrderLineId])
+  @@map("pur_goods_receipt_line")
 }

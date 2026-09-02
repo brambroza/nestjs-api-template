@@ -52,6 +52,9 @@ export type Subject =
   | 'Quotation'
   | 'SalesOrder'
   | 'DeliveryNote'
+  | 'PurchaseRequisition'
+  | 'PurchaseOrder'
+  | 'GoodsReceipt'
   | 'all';
 
 export type AppSubjects = InferSubjects<Subject>;

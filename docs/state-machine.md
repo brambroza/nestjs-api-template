@@ -119,3 +119,42 @@ Notes
 - **Quotation conversion.** `POST /sales-orders { quotationId }` copies the
   ACCEPTED quotation at its quoted prices and back-links `salesOrderId`; a
   quotation converts once.
+
+---
+
+# Procurement — State Machines (EPIC-B.3)
+
+Code: `src/modules/purchase/procurement/domain/{requisition,purchase-order,goods-receipt}.ts`.
+
+## Purchase requisition
+
+| from ↓ / to →        | DRAFT | PENDING_APPROVAL | APPROVED | REJECTED | CANCELLED | CONVERTED |
+|----------------------|:-----:|:----------------:|:--------:|:--------:|:---------:|:---------:|
+| **DRAFT**            |   —   | submit: a policy step applies | submit: auto-approved | ✗ | requester | ✗ |
+| **PENDING_APPROVAL** | approval withdrawn | — | approval APPROVED (`/confirm`) | approval REJECTED (`/confirm`) | requester | ✗ |
+| **APPROVED**         |   ✗   |        ✗         |    —     |    ✗     | requester | `POST /purchase-orders { requisitionId }` |
+| **REJECTED**         | `/reopen` |    ✗         |    ✗     |    —     |     ✗     |     ✗     |
+| **CANCELLED** / **CONVERTED** | ✗ | ✗ | ✗ | ✗ | — | — |
+
+Approval runs against `PURCHASE_REQUISITION` with the **estimated** total; the
+PO carries the real prices and is approved again against `PURCHASE_ORDER`.
+
+## Purchase order
+
+| from ↓ / to →          | DRAFT | PENDING_APPROVAL | ISSUED | PARTIALLY_RECEIVED | RECEIVED | REJECTED | CANCELLED |
+|------------------------|:-----:|:----------------:|:------:|:------------------:|:--------:|:--------:|:---------:|
+| **DRAFT**              |   —   | submit: a policy step applies | submit: auto-approved | ✗ | ✗ | ✗ | buyer |
+| **PENDING_APPROVAL**   | approval withdrawn | — | approval APPROVED (`/confirm`) | ✗ | ✗ | approval REJECTED | buyer |
+| **ISSUED**             |   ✗   |        ✗         |   —    | goods receipt POSTED (partial) | goods receipt POSTED (all) | ✗ | buyer, only while nothing received |
+| **PARTIALLY_RECEIVED** |   ✗   |        ✗         |   ✗    |         —          | goods receipt POSTED (rest) | ✗ | ✗ |
+| **RECEIVED**           |   ✗   |        ✗         |   ✗    |         ✗          |    —     |    ✗     |     ✗     |
+| **REJECTED**           | `/reopen` |    ✗         |   ✗    |         ✗          |    ✗     |    —     |     ✗     |
+| **CANCELLED**          |   ✗   |        ✗         |   ✗    |         ✗          |    ✗     |    ✗     |     —     |
+
+## Goods receipt
+
+DRAFT → POSTED (posts `receivedQty` on the PO lines in the same transaction;
+over-receipt = `PURCHASE.OVER_RECEIPT`), DRAFT → CANCELLED. Posted receipts are
+immutable. LOT-tracked items must carry a `lotNumber` (expiry optional); the
+receipt records the warehouse so Phase C inventory can turn it into stock
+movements without re-keying.
