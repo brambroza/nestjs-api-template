@@ -6,6 +6,7 @@ import { MasterDataModule } from './modules/master-data/master-data.module';
 import { UserModule } from './modules/master-data/user/user.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { ProductionOrderModule } from './modules/production-order/production-order.module';
+import { SalesModule } from './modules/sales/sales.module';
 import { AuthModule } from './shared/auth';
 import { AppClsModule } from './shared/cls';
 import { ClockModule } from './shared/clock';
@@ -37,6 +38,7 @@ import { GlobalValidationModule } from './shared/validation/validation.module';
     ProductionOrderModule,
     MasterDataModule,
     ApprovalModule,
+    SalesModule,
     NotificationModule,
   ],
   providers: [

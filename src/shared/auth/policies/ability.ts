@@ -49,6 +49,7 @@ export type Subject =
   | 'ApprovalPolicy'
   | 'ApprovalRequest'
   | 'ApprovalDelegation'
+  | 'Quotation'
   | 'all';
 
 export type AppSubjects = InferSubjects<Subject>;

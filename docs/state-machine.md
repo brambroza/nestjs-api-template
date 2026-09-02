@@ -53,3 +53,34 @@ The authority matrix is enforced by CASL policies at the application layer, not 
 - Code table: `src/modules/production-order/domain/state-machine.ts`
 - Enforcement: `ProductionOrder.transitionTo(next, ...)` — the only mutator
 - Tests: `src/modules/production-order/domain/state-machine.spec.ts` — walks all 7×7 = 49 cells
+
+---
+
+# Quotation — State Machine (EPIC-B.1)
+
+Code: `src/modules/sales/quotation/domain/quotation.ts` (`TRANSITIONS`).
+`quotation.spec.ts` exercises every allowed edge and the forbidden ones.
+
+| from ↓ / to → | DRAFT | SENT | ACCEPTED | REJECTED | EXPIRED | CANCELLED |
+|---------------|:-----:|:----:|:--------:|:--------:|:-------:|:---------:|
+| **DRAFT**     |   —   | sales (≥ 1 line, validUntil ≥ today) | ✗ | ✗ | ✗ | sales |
+| **SENT**      |   ✗   |  —   | sales (today ≤ validUntil) | sales (+ reason) | nightly cron (validUntil < today) | sales |
+| **ACCEPTED**  |   ✗   |  ✗   |    —     |    ✗     |    ✗    |     ✗     |
+| **REJECTED**  |   ✗   |  ✗   |    ✗     |    —     |    ✗    |     ✗     |
+| **EXPIRED**   |   ✗   |  ✗   |    ✗     |    ✗     |    —    |     ✗     |
+| **CANCELLED** |   ✗   |  ✗   |    ✗     |    ✗     |    ✗    |     —     |
+
+Notes
+
+- **Revisions.** SENT / REJECTED / EXPIRED may be *revised*: a new row with the
+  same `number`, `revision + 1`, status DRAFT and copied lines. The source row is
+  never mutated (audit). Only the latest revision may be revised again.
+- **Editing.** Header and lines change only in DRAFT; lines are re-priced from
+  the current price lists on every edit (`PRICE_LIST`) unless a manual price is
+  given (`MANUAL`, kept for audit).
+- **Money.** All amounts are integer minor units; per-line half-up rounding for
+  discount and VAT, header totals are the sum of the lines.
+- **Concurrency.** `version` optimistic lock (ADR 0002 §6). Clients may send
+  `expectedVersion`; a mismatch is `SALES.VERSION_CONFLICT` (409).
+- **ACCEPTED → sales order.** The sales-order module links `salesOrderId`
+  on conversion (next batch); a quotation converts at most once.

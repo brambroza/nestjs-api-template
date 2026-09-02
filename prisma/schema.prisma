@@ -72,8 +72,105 @@ model Tenant {
   approvalPolicies               ApprovalPolicy[]
   approvalRequests               ApprovalRequest[]
   approvalDelegations            ApprovalDelegation[]
+  documentSequences              DocumentSequence[]
+  quotations                     Quotation[]
+  quotationLines                 QuotationLine[]
 
   @@map("tenant")
+}
+
+// ---------------------------------------------------------------------------
+// Document numbering — shared by every transactional document (Phase B).
+// ---------------------------------------------------------------------------
+
+/// One counter per (tenant, key). Key = "<prefix>:<yyyymm>" so numbers
+/// restart monthly (QT-202609-0001). Incremented inside the document's
+/// own transaction; the row lock serialises concurrent creators.
+model DocumentSequence {
+  tenantId  String   @db.NVarChar(36)
+  key       String   @db.NVarChar(32)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([tenantId, key])
+  @@map("doc_sequence")
+}
+
+// ---------------------------------------------------------------------------
+// Sales — Quotation (EPIC-B.1)
+// ---------------------------------------------------------------------------
+
+/// Revisions share `number`; (number, revision) is unique. Money in minor
+/// units of `currency`. `version` is the optimistic-lock counter
+/// (ADR 0002 §6).
+model Quotation {
+  id               String    @id @db.NVarChar(36)
+  tenantId         String    @db.NVarChar(36)
+  companyId        String    @db.NVarChar(36)
+  number           String    @db.NVarChar(24)
+  revision         Int       @default(1)
+  customerId       String    @db.NVarChar(36)
+  currency         String    @db.NVarChar(3)
+  quoteDate        DateTime  @db.Date
+  validUntil       DateTime  @db.Date
+  /// DRAFT | SENT | ACCEPTED | REJECTED | EXPIRED | CANCELLED
+  status           String    @db.NVarChar(12)
+  paymentTermsDays Int
+  notes            String?   @db.NVarChar(Max)
+  subtotalMinor    BigInt
+  discountMinor    BigInt
+  taxMinor         BigInt
+  totalMinor       BigInt
+  version          Int       @default(0)
+  createdBy        String    @db.NVarChar(64)
+  sentAt           DateTime? @db.DateTime2
+  resolvedAt       DateTime? @db.DateTime2
+  rejectReason     String?   @db.NVarChar(500)
+  /// Set by the sales-order module when an ACCEPTED quotation is converted.
+  salesOrderId     String?   @db.NVarChar(36)
+  createdAt        DateTime  @db.DateTime2
+  updatedAt        DateTime  @updatedAt @db.DateTime2
+
+  tenant Tenant          @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lines  QuotationLine[]
+
+  @@unique([tenantId, number, revision])
+  @@index([tenantId, customerId, status])
+  @@index([tenantId, status, validUntil])
+  @@map("sls_quotation")
+}
+
+model QuotationLine {
+  id             String  @id @db.NVarChar(36)
+  tenantId       String  @db.NVarChar(36)
+  quotationId    String  @db.NVarChar(36)
+  lineNo         Int
+  itemId         String  @db.NVarChar(36)
+  itemSku        String  @db.NVarChar(64)
+  description    String  @db.NVarChar(200)
+  uomCode        String  @db.NVarChar(16)
+  quantity       BigInt
+  unitPriceMinor BigInt
+  /// PRICE_LIST | MANUAL
+  priceSource    String  @db.NVarChar(12)
+  priceListId    String? @db.NVarChar(36)
+  discountBp     Int     @default(0)
+  discountMinor  BigInt
+  netMinor       BigInt
+  taxCodeId      String  @db.NVarChar(36)
+  taxCode        String  @db.NVarChar(16)
+  taxRateBp      Int
+  taxMinor       BigInt
+  totalMinor     BigInt
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  quotation Quotation @relation(fields: [quotationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([quotationId, lineNo])
+  @@index([tenantId, itemId])
+  @@map("sls_quotation_line")
 }
 
 // ---------------------------------------------------------------------------

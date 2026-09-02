@@ -158,6 +158,18 @@ export const MESSAGES_TH: Readonly<Record<string, string>> = {
   'APPROVAL.INVALID_REQUEST': 'ข้อมูลคำขออนุมัติไม่ถูกต้อง',
   'APPROVAL.DELEGATION_NOT_FOUND': 'ไม่พบการมอบอำนาจที่ระบุ',
   'APPROVAL.INVALID_DELEGATION': 'ข้อมูลการมอบอำนาจไม่ถูกต้อง',
+
+  'SALES.QUOTATION_NOT_FOUND': 'ไม่พบใบเสนอราคาที่ระบุ',
+  'SALES.ILLEGAL_QUOTATION_TRANSITION':
+    'ไม่สามารถเปลี่ยนสถานะใบเสนอราคาจากสถานะปัจจุบันได้',
+  'SALES.QUOTATION_NOT_EDITABLE': 'แก้ไขได้เฉพาะใบเสนอราคาสถานะร่างเท่านั้น',
+  'SALES.QUOTATION_EXPIRED': 'ใบเสนอราคาหมดอายุแล้ว',
+  'SALES.INVALID_QUOTATION': 'ข้อมูลใบเสนอราคาไม่ถูกต้อง',
+  'SALES.VERSION_CONFLICT':
+    'เอกสารถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณาโหลดใหม่แล้วลองอีกครั้ง',
+  'SALES.REF_INVALID':
+    'ข้อมูลอ้างอิง (บริษัท/ลูกค้า/สินค้า/สกุลเงิน) ไม่ถูกต้อง',
+  'SALES.CURRENCY_MISMATCH': 'สกุลเงินของราคาสินค้าไม่ตรงกับสกุลเงินของเอกสาร',
 };
 
 const FALLBACK_TH = 'เกิดข้อผิดพลาดที่ไม่คาดคิด';

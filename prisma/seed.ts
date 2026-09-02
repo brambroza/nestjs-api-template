@@ -125,6 +125,7 @@ async function main(): Promise<void> {
         id: 'role-sales-manager',
         name: 'sales-manager',
         rules: [
+          { action: 'manage', subject: 'Quotation' },
           { action: 'read', subject: 'Customer' },
           { action: 'read', subject: 'Item' },
           { action: 'read', subject: 'PriceList' },
@@ -146,6 +147,22 @@ async function main(): Promise<void> {
           { action: 'read', subject: 'ApprovalDelegation' },
           { action: 'create', subject: 'ApprovalDelegation' },
           { action: 'update', subject: 'ApprovalDelegation' },
+        ],
+      },
+      {
+        id: 'role-sales',
+        name: 'sales',
+        rules: [
+          { action: 'manage', subject: 'Quotation' },
+          { action: 'read', subject: 'Company' },
+          { action: 'read', subject: 'Customer' },
+          { action: 'read', subject: 'Item' },
+          { action: 'read', subject: 'Uom' },
+          { action: 'read', subject: 'PriceList' },
+          { action: 'read', subject: 'TaxCode' },
+          { action: 'read', subject: 'Currency' },
+          { action: 'read', subject: 'PartnerContact' },
+          { action: 'read', subject: 'PartnerAddress' },
         ],
       },
       {
@@ -356,6 +373,25 @@ async function main(): Promise<void> {
       });
     }
 
+    // Sales rep: owns quotations (EPIC-B.1).
+    const salesHash = await hashPassword('sales123!');
+    await prisma.user.upsert({
+      where: { tenantId_email: { tenantId, email: 'sales@demo.local' } },
+      update: { passwordHash: salesHash },
+      create: {
+        id: 'user-sales',
+        tenantId,
+        email: 'sales@demo.local',
+        passwordHash: salesHash,
+        displayName: 'Demo Sales Rep',
+      },
+    });
+    await prisma.userRole.upsert({
+      where: { userId_roleId: { userId: 'user-sales', roleId: 'role-sales' } },
+      update: {},
+      create: { userId: 'user-sales', roleId: 'role-sales' },
+    });
+
     // Approval matrices (EPIC-B.4). Amounts in satang.
     const policiesSeed = [
       {
@@ -524,6 +560,63 @@ async function main(): Promise<void> {
         taxId: '0105551234567',
         creditLimitSatang: 1_000_000_00n,
         paymentTermsDays: 30,
+      },
+    });
+
+    // Demo quotation QT-202609-0001 rev 1 (DRAFT): 10 x FIN-A @ 1,400.00 + VAT 7 %.
+    await prisma.documentSequence.upsert({
+      where: { tenantId_key: { tenantId, key: 'QT:202609' } },
+      update: {},
+      create: { tenantId, key: 'QT:202609', nextValue: 2 },
+    });
+    await prisma.quotation.upsert({
+      where: { tenantId_number_revision: { tenantId, number: 'QT-202609-0001', revision: 1 } },
+      update: {},
+      create: {
+        id: 'qt-demo-1',
+        tenantId,
+        companyId: 'co-demo',
+        number: 'QT-202609-0001',
+        revision: 1,
+        customerId: 'cust-001',
+        currency: 'THB',
+        quoteDate: new Date('2026-09-01T00:00:00.000Z'),
+        validUntil: new Date('2026-09-30T00:00:00.000Z'),
+        status: 'DRAFT',
+        paymentTermsDays: 30,
+        notes: 'ตัวอย่างใบเสนอราคา',
+        subtotalMinor: 14_000_00n,
+        discountMinor: 0n,
+        taxMinor: 980_00n,
+        totalMinor: 14_980_00n,
+        version: 0,
+        createdBy: 'user-sales',
+        createdAt: new Date('2026-09-01T02:00:00.000Z'),
+        lines: {
+          create: [
+            {
+              id: 'qtl-demo-1',
+              tenantId,
+              lineNo: 1,
+              itemId: 'item-fin-a',
+              itemSku: 'FIN-A',
+              description: 'Finished Product A',
+              uomCode: 'PCS',
+              quantity: 10n,
+              unitPriceMinor: 1_400_00n,
+              priceSource: 'PRICE_LIST',
+              priceListId: 'pl-std-2026',
+              discountBp: 0,
+              discountMinor: 0n,
+              netMinor: 14_000_00n,
+              taxCodeId: 'tax-vat7',
+              taxCode: 'VAT7',
+              taxRateBp: 700,
+              taxMinor: 980_00n,
+              totalMinor: 14_980_00n,
+            },
+          ],
+        },
       },
     });
 
@@ -775,7 +868,8 @@ async function main(): Promise<void> {
 
     // eslint-disable-next-line no-console
     console.log(`Seeded tenant "${tenantId}".
-  Roles: admin, master-data-editor, pdpa-officer, creator, approver, planner, shopfloor
+  Roles: admin, master-data-editor, pdpa-officer, finance-admin, sales, sales-manager,
+    purchasing-manager, creator, approver, planner, shopfloor
   Users:
     admin@demo.local / admin123!    (roles: admin)
     operator@demo.local / operator123!  (roles: creator, planner, shopfloor)
@@ -790,6 +884,8 @@ async function main(): Promise<void> {
   Approval: manager@demo.local / manager123! (sales-manager, purchasing-manager, approver)
     policies SALES_ORDER (mgr; finance >= 500k), PURCHASE_REQUISITION (mgr),
     PURCHASE_ORDER (mgr; finance >= 200k; admin >= 2M)
+  Sales: sales@demo.local / sales123! (sales) — quotation QT-202609-0001 rev 1 DRAFT
+    (10 x FIN-A @ 1,400.00 + VAT 7% = 14,980.00, valid until 2026-09-30)
   Partner: CUST-001 has 1 primary contact, 1 default BILLING address, 1 MARKETING consent
   Order: ${orderId} (DRAFT, productSku FIN-A -> master BOM) + 500 KG RAW-A stock`);
   } finally {

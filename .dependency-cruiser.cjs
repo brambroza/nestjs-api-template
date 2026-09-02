@@ -20,7 +20,7 @@
  * introduce another such grouping.
  */
 
-const CONTAINERS = ['master-data'];
+const CONTAINERS = ['master-data', 'sales', 'purchase'];
 const MODULE = `((?:(?:${CONTAINERS.join('|')})/)?[^/]+)`;
 
 /** @type {import('dependency-cruiser').IConfiguration} */
