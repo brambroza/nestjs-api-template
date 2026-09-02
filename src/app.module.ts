@@ -15,6 +15,7 @@ import { HealthModule } from './shared/health';
 import { IdempotencyModule } from './shared/idempotency/idempotency.module';
 import { LoggingInterceptor, TimeoutInterceptor } from './shared/interceptors';
 import { AppLoggerModule } from './shared/logging';
+import { TenantContextModule } from './shared/tenant';
 import { AppThrottlerModule } from './shared/throttler/throttler.module';
 import { GlobalValidationModule } from './shared/validation/validation.module';
 
@@ -25,6 +26,7 @@ import { GlobalValidationModule } from './shared/validation/validation.module';
     ClockModule,
     AppLoggerModule,
     DatabaseModule,
+    TenantContextModule,
     AuthModule,
     AppThrottlerModule,
     IdempotencyModule,

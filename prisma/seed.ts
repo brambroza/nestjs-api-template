@@ -51,6 +51,20 @@ async function main(): Promise<void> {
         rules: [{ action: 'manage', subject: 'all' }],
       },
       {
+        id: 'role-master-data-editor',
+        name: 'master-data-editor',
+        rules: [
+          { action: 'read', subject: 'Customer' },
+          { action: 'create', subject: 'Customer' },
+          { action: 'read', subject: 'Vendor' },
+          { action: 'create', subject: 'Vendor' },
+          { action: 'read', subject: 'Item' },
+          { action: 'create', subject: 'Item' },
+          { action: 'read', subject: 'Uom' },
+          { action: 'create', subject: 'Uom' },
+        ],
+      },
+      {
         id: 'role-creator',
         name: 'creator',
         rules: [
@@ -58,6 +72,10 @@ async function main(): Promise<void> {
           { action: 'read', subject: 'ProductionOrder' },
           { action: 'submit', subject: 'ProductionOrderSubmit' },
           { action: 'cancel', subject: 'ProductionOrderCancel' },
+          { action: 'read', subject: 'Customer' },
+          { action: 'read', subject: 'Vendor' },
+          { action: 'read', subject: 'Item' },
+          { action: 'read', subject: 'Uom' },
         ],
       },
       {
@@ -140,6 +158,90 @@ async function main(): Promise<void> {
       });
     }
 
+    // Master-data seed rows — a base UoM (PCS) + one derived (BOX = 12 PCS),
+    // one customer, one vendor, one item. Idempotent by (tenantId, code|sku).
+    const uoms = [
+      {
+        id: 'uom-pcs',
+        code: 'PCS',
+        name: 'Piece',
+        baseUomCode: null as string | null,
+        conversionRatio: 1n,
+      },
+      {
+        id: 'uom-kg',
+        code: 'KG',
+        name: 'Kilogram',
+        baseUomCode: null as string | null,
+        conversionRatio: 1n,
+      },
+      {
+        id: 'uom-box',
+        code: 'BOX',
+        name: 'Box of 12',
+        baseUomCode: 'PCS' as string | null,
+        conversionRatio: 12n,
+      },
+    ];
+    for (const u of uoms) {
+      await prisma.uomDefinition.upsert({
+        where: { tenantId_code: { tenantId, code: u.code } },
+        update: {
+          name: u.name,
+          baseUomCode: u.baseUomCode,
+          conversionRatio: u.conversionRatio,
+        },
+        create: {
+          id: u.id,
+          tenantId,
+          code: u.code,
+          name: u.name,
+          baseUomCode: u.baseUomCode,
+          conversionRatio: u.conversionRatio,
+        },
+      });
+    }
+
+    await prisma.item.upsert({
+      where: { tenantId_sku: { tenantId, sku: 'FIN-A' } },
+      update: {},
+      create: {
+        id: 'item-fin-a',
+        tenantId,
+        sku: 'FIN-A',
+        name: 'Finished Product A',
+        description: 'Demo finished good — assembled from RAW-A',
+        defaultUomCode: 'PCS',
+      },
+    });
+
+    await prisma.customer.upsert({
+      where: { tenantId_code: { tenantId, code: 'CUST-001' } },
+      update: {},
+      create: {
+        id: 'cust-001',
+        tenantId,
+        code: 'CUST-001',
+        name: 'Demo Customer Co., Ltd.',
+        taxId: '0105551234567',
+        creditLimitSatang: 1_000_000_00n,
+        paymentTermsDays: 30,
+      },
+    });
+
+    await prisma.vendor.upsert({
+      where: { tenantId_code: { tenantId, code: 'VEND-001' } },
+      update: {},
+      create: {
+        id: 'vend-001',
+        tenantId,
+        code: 'VEND-001',
+        name: 'Demo Supplier Co., Ltd.',
+        taxId: '0105557654321',
+        paymentTermsDays: 45,
+      },
+    });
+
     // Production-order demo
     await prisma.productionOrder.upsert({
       where: { id: orderId },
@@ -193,10 +295,11 @@ async function main(): Promise<void> {
 
     // eslint-disable-next-line no-console
     console.log(`Seeded tenant "${tenantId}".
-  Roles: admin, creator, approver, planner, shopfloor
+  Roles: admin, master-data-editor, creator, approver, planner, shopfloor
   Users:
     admin@demo.local / admin123!    (roles: admin)
     operator@demo.local / operator123!  (roles: creator, planner, shopfloor)
+  Master data: UoM (PCS, KG, BOX), Item FIN-A, Customer CUST-001, Vendor VEND-001
   Order: ${orderId} (DRAFT) + BOM RAW-A + 500 kg stock`);
   } finally {
     await prisma.$disconnect();

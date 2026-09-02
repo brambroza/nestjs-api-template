@@ -29,6 +29,23 @@ export const MESSAGES_TH: Readonly<Record<string, string>> = {
 
   'AUTH.TENANT_CONTEXT_MISSING': 'ระบุ Tenant ในคำขอไม่ถูกต้อง',
   'AUTH.USER_CONTEXT_MISSING': 'ระบุผู้ใช้ในคำขอไม่ถูกต้อง',
+  'AUTH.INVALID_CREDENTIALS': 'อีเมลหรือรหัสผ่านไม่ถูกต้อง',
+  'AUTH.USER_INACTIVE': 'บัญชีผู้ใช้ถูกระงับการใช้งาน',
+  'AUTH.INVALID_PERMISSION_RULE':
+    'ข้อมูลสิทธิ์การใช้งานผิดรูปแบบ กรุณาติดต่อผู้ดูแลระบบ',
+
+  'MASTER_DATA.CUSTOMER_NOT_FOUND': 'ไม่พบข้อมูลลูกค้าที่ระบุ',
+  'MASTER_DATA.DUPLICATE_CUSTOMER_CODE': 'รหัสลูกค้านี้ถูกใช้งานแล้ว',
+  'MASTER_DATA.INVALID_CUSTOMER_FIELD': 'ข้อมูลลูกค้าไม่ถูกต้อง',
+  'MASTER_DATA.VENDOR_NOT_FOUND': 'ไม่พบข้อมูลผู้ขายที่ระบุ',
+  'MASTER_DATA.DUPLICATE_VENDOR_CODE': 'รหัสผู้ขายนี้ถูกใช้งานแล้ว',
+  'MASTER_DATA.INVALID_VENDOR_FIELD': 'ข้อมูลผู้ขายไม่ถูกต้อง',
+  'MASTER_DATA.ITEM_NOT_FOUND': 'ไม่พบข้อมูลสินค้าที่ระบุ',
+  'MASTER_DATA.DUPLICATE_ITEM_SKU': 'รหัสสินค้า (SKU) นี้ถูกใช้งานแล้ว',
+  'MASTER_DATA.INVALID_ITEM_FIELD': 'ข้อมูลสินค้าไม่ถูกต้อง',
+  'MASTER_DATA.UOM_NOT_FOUND': 'ไม่พบข้อมูลหน่วยนับที่ระบุ',
+  'MASTER_DATA.DUPLICATE_UOM_CODE': 'รหัสหน่วยนับนี้ถูกใช้งานแล้ว',
+  'MASTER_DATA.INVALID_UOM_FIELD': 'ข้อมูลหน่วยนับไม่ถูกต้อง',
 };
 
 const FALLBACK_TH = 'เกิดข้อผิดพลาดที่ไม่คาดคิด';

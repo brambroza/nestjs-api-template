@@ -27,6 +27,10 @@ export type Subject =
   | 'ProductionOrderRelease'
   | 'ProductionOrderReport'
   | 'ProductionOrderCancel'
+  | 'Customer'
+  | 'Vendor'
+  | 'Item'
+  | 'Uom'
   | 'all';
 
 export type AppSubjects = InferSubjects<Subject>;
