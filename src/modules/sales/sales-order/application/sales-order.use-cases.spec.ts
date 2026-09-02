@@ -1,3 +1,4 @@
+import { FakeInventoryGateway } from '../../../inventory/testing';
 import {
   FakeNumbers,
   FakeTx,
@@ -41,6 +42,7 @@ describe('Sales order use cases', () => {
   let approvals: FakeApprovalGateway;
   let quotations: FakeQuotationConversion;
   let outbox: InMemorySalesOrderOutbox;
+  let inventory: FakeInventoryGateway;
   let clock: FixedClock;
   let create: CreateSalesOrderUseCase;
   let submit: SubmitSalesOrderUseCase;
@@ -54,6 +56,7 @@ describe('Sales order use cases', () => {
     approvals = new FakeApprovalGateway();
     quotations = new FakeQuotationConversion();
     outbox = new InMemorySalesOrderOutbox();
+    inventory = new FakeInventoryGateway();
     clock = new FixedClock(new Date('2026-09-02T03:00:00.000Z'));
     refs.companies.set('co', { id: 'co', baseCurrency: 'THB', isActive: true });
     refs.customers.set('c1', {
@@ -94,6 +97,7 @@ describe('Sales order use cases', () => {
       tx,
       tenant,
       clock,
+      inventory,
     );
     confirm = new ConfirmSalesOrderUseCase(
       orders,
@@ -102,6 +106,7 @@ describe('Sales order use cases', () => {
       tx,
       tenant,
       clock,
+      inventory,
     );
   });
 
@@ -130,6 +135,10 @@ describe('Sales order use cases', () => {
       'sales_order.submitted.v1',
       'sales_order.confirmed.v1',
     ]);
+    expect(inventory.reserved[0]).toMatchObject({
+      referenceType: 'SALES_ORDER',
+      referenceId: so.id,
+    });
   });
 
   it('open exposure counts: the second order breaches the limit and is blocked without a policy', async () => {
@@ -220,6 +229,7 @@ describe('Sales order use cases', () => {
       tx,
       tenant,
       clock,
+      inventory,
     );
     const dn = await createNote.execute({
       salesOrderId: so.id,

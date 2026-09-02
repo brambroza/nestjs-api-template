@@ -2,6 +2,7 @@ import { ClassSerializerInterceptor, Module } from '@nestjs/common';
 import { APP_FILTER, APP_INTERCEPTOR, Reflector } from '@nestjs/core';
 
 import { ApprovalModule } from './modules/approval';
+import { InventoryModule } from './modules/inventory';
 import { MasterDataModule } from './modules/master-data/master-data.module';
 import { UserModule } from './modules/master-data/user/user.module';
 import { NotificationModule } from './modules/notification/notification.module';
@@ -36,6 +37,7 @@ import { GlobalValidationModule } from './shared/validation/validation.module';
     GlobalValidationModule,
     HealthModule,
     UserModule,
+    InventoryModule,
     ProductionOrderModule,
     MasterDataModule,
     ApprovalModule,

@@ -152,6 +152,33 @@ export class QuotationNotConvertibleError extends DomainError {
   readonly code = 'SALES.QUOTATION_NOT_CONVERTIBLE';
 }
 
+export interface SalesStockShortage {
+  readonly itemId: string;
+  readonly itemSku: string;
+  readonly uomCode: string;
+  readonly requiredQty: bigint;
+  readonly availableQty: bigint;
+}
+
+/** T-213: confirm reserves stock; a shortage blocks the confirmation. */
+export class SalesStockShortageError extends DomainError {
+  readonly code = 'SALES.STOCK_SHORTAGE';
+  constructor(
+    readonly salesOrderId: string,
+    readonly warehouseId: string,
+    readonly shortages: readonly SalesStockShortage[],
+  ) {
+    super(
+      `Sales order ${salesOrderId}: insufficient stock in ${warehouseId} for ${shortages
+        .map(
+          (s) =>
+            `${s.itemSku} (${s.availableQty.toString()}/${s.requiredQty.toString()} ${s.uomCode})`,
+        )
+        .join(', ')}`,
+    );
+  }
+}
+
 export class SalesOrderHasDeliveriesError extends DomainError {
   readonly code = 'SALES.ORDER_HAS_DELIVERIES';
   constructor(readonly salesOrderId: string) {

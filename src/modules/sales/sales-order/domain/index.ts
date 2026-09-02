@@ -15,6 +15,7 @@ export {
   SalesOrderNotFoundError,
   SalesOrderStatus,
   SalesOrderVersionConflictError,
+  SalesStockShortageError,
   canTransition,
   isCreditStatus,
   isSalesOrderStatus,
@@ -26,6 +27,7 @@ export {
   type SalesOrderLineSnapshot,
   type SalesOrderSnapshot,
   type SalesOrderTotals,
+  type SalesStockShortage,
   type SubmitOutcome,
 } from './sales-order';
 export {

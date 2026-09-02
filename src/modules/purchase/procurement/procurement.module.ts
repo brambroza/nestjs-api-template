@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { ApprovalModule } from '../../approval';
+import { InventoryModule } from '../../inventory';
 import { MasterDataModule } from '../../master-data';
 
 import { GoodsReceiptController } from './api/goods-receipt.controller';
@@ -48,7 +49,7 @@ import { PrismaRequisitionRepository } from './infrastructure/prisma-requisition
  * surfaces (master-data index, approval index).
  */
 @Module({
-  imports: [MasterDataModule, ApprovalModule],
+  imports: [MasterDataModule, ApprovalModule, InventoryModule],
   controllers: [
     RequisitionController,
     PurchaseOrderController,

@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 
+import { InventoryModule } from '../inventory';
+
 import { APPROVAL_THRESHOLD } from './application/ports/approval-threshold.port';
 import { BOM_LOOKUP } from './application/ports/bom-lookup.port';
 import { CALENDAR } from './application/ports/calendar.port';
@@ -21,7 +23,7 @@ import {
 import { ProductionOrderController } from './api/production-order.controller';
 import {
   PrismaBomLookup,
-  PrismaInventory,
+  InventoryGatewayAdapter,
   PrismaOutbox,
   PrismaProductionOrderRepository,
   PrismaTenantThresholdProvider,
@@ -37,6 +39,7 @@ import { PrismaTransactionManager } from '../../shared/database';
  * and application layers do not change.
  */
 @Module({
+  imports: [InventoryModule],
   controllers: [ProductionOrderController],
   providers: [
     { provide: TENANT_CONTEXT, useClass: ClsTenantContextService },
@@ -47,7 +50,7 @@ import { PrismaTransactionManager } from '../../shared/database';
     },
     { provide: OUTBOX, useClass: PrismaOutbox },
     { provide: BOM_LOOKUP, useClass: PrismaBomLookup },
-    { provide: INVENTORY, useClass: PrismaInventory },
+    { provide: INVENTORY, useClass: InventoryGatewayAdapter },
     { provide: CALENDAR, useClass: WeekdayOnlyCalendar },
     { provide: APPROVAL_THRESHOLD, useClass: PrismaTenantThresholdProvider },
     { provide: TOLERANCE_POLICY, useClass: PrismaTenantToleranceProvider },

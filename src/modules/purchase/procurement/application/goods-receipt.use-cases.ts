@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 
 import { CLOCK, type Clock } from '../../../../shared/clock';
-import { toIsoDate, type IsoDate } from '../../../../shared/domain';
+import { roundDiv, toIsoDate, type IsoDate } from '../../../../shared/domain';
 import {
   DOCUMENT_NUMBER_GENERATOR,
   type DocumentNumberGenerator,
@@ -13,6 +13,7 @@ import {
   TRANSACTION_MANAGER,
   type TransactionManager,
 } from '../../../../shared/transaction';
+import { INVENTORY_GATEWAY, type InventoryGateway } from '../../../inventory';
 import {
   GoodsReceipt,
   GoodsReceiptNotFoundError,
@@ -181,6 +182,7 @@ export class PostGoodsReceiptUseCase {
     @Inject(TRANSACTION_MANAGER) private readonly tx: TransactionManager,
     @Inject(TENANT_CONTEXT) private readonly tenant: TenantContext,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(INVENTORY_GATEWAY) private readonly inventory: InventoryGateway,
   ) {}
 
   async execute(input: GoodsReceiptActionInput): Promise<GoodsReceipt> {
@@ -205,6 +207,24 @@ export class PostGoodsReceiptUseCase {
         ),
       );
       const rs = received.snapshot();
+      // T-223: stock IN at the PO line's net unit cost (discount applied, VAT excluded).
+      const costOf = new Map(
+        rs.lines.map((l) => [l.id, roundDiv(l.netMinor, l.quantity)]),
+      );
+      await this.inventory.receive({
+        warehouseId: gs.warehouseId,
+        currency: rs.currency,
+        referenceType: 'GOODS_RECEIPT',
+        referenceId: posted.id,
+        lines: gs.lines.map((l) => ({
+          itemId: l.itemId,
+          quantity: l.quantity,
+          uomCode: l.uomCode,
+          unitCostMinor: costOf.get(l.purchaseOrderLineId) ?? 0n,
+          lotNumber: l.lotNumber,
+          expiryDate: l.expiryDate,
+        })),
+      });
       await this.outbox.enqueue({
         idempotencyKey: `${rs.id}:received:${posted.id}`,
         event: {

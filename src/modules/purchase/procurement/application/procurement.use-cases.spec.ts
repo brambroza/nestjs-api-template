@@ -21,6 +21,8 @@ import {
   CreateRequisitionUseCase,
   SubmitRequisitionUseCase,
 } from './requisition.use-cases';
+import { FakeInventoryGateway } from '../../../inventory/testing';
+
 import {
   FakeApprovalGateway,
   FakeNumbers,
@@ -54,6 +56,7 @@ describe('Procurement use cases', () => {
   let confirmPo: ConfirmPurchaseOrderUseCase;
   let createGrn: CreateGoodsReceiptUseCase;
   let postGrn: PostGoodsReceiptUseCase;
+  let inventory: FakeInventoryGateway;
 
   beforeEach(() => {
     requisitions = new InMemoryRequisitionRepository();
@@ -63,6 +66,7 @@ describe('Procurement use cases', () => {
     approvals = new FakeApprovalGateway();
     outbox = new InMemoryPurchaseOutbox();
     numbers = new FakeNumbers();
+    inventory = new FakeInventoryGateway();
     clock = new FixedClock(new Date('2026-09-02T03:00:00.000Z'));
     const tax = new InMemoryPurchaseTax();
     refs.companies.set('co', { id: 'co', baseCurrency: 'THB', isActive: true });
@@ -147,6 +151,7 @@ describe('Procurement use cases', () => {
       tx,
       tenant,
       clock,
+      inventory,
     );
   });
 

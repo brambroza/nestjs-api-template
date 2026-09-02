@@ -158,3 +158,35 @@ over-receipt = `PURCHASE.OVER_RECEIPT`), DRAFT → CANCELLED. Posted receipts ar
 immutable. LOT-tracked items must carry a `lotNumber` (expiry optional); the
 receipt records the warehouse so Phase C inventory can turn it into stock
 movements without re-keying.
+
+---
+
+# Inventory — Ledger Rules (EPIC-C.1)
+
+Code: `src/modules/inventory/application/stock-ledger.service.ts` (the only
+writer) and `domain/{balance,costing,lot,serial,transfer}.ts` (pure rules).
+
+- **Ledger.** `inv_stock_movement` is append-only; `inv_stock_balance` is its
+  projection per (warehouse, item, lot). Types: RECEIPT, ISSUE, TRANSFER_OUT,
+  TRANSFER_IN, ADJUST_IN, ADJUST_OUT, RESERVE, UNRESERVE. Quantity is always
+  positive; the type carries the sign. Every movement writes an outbox event.
+- **Invariants.** on-hand never negative; reserved never exceeds on-hand;
+  available = on-hand − reserved. A document's own hold is consumed first when
+  it issues (`consumeReservations`), so a confirmed sales order can always ship
+  what it reserved.
+- **Costing.** Tenant setting `costingMethod` = FIFO (one cost layer per receipt,
+  consumed oldest first) or WEIGHTED_AVG (moving average per item). Issues carry
+  `costMinor` for the GL (EPIC-C.4). Transfers ship at the source cost and
+  re-layer at the destination.
+- **Lots.** LOT items must name a lot on receipt (expiry defaults to receipt
+  date + shelf life); issues without a lot allocate FEFO. The nightly sweep
+  (00:15 Bangkok) alerts 30/7/1 days before expiry and once after.
+- **Serials.** SERIAL items carry exactly one serial per unit on receipt and
+  issue; a serial can be IN_STOCK, RESERVED, IN_TRANSIT or ISSUED, never in two
+  warehouses.
+- **Transfers.** DRAFT → IN_TRANSIT (ship) → RECEIVED; DRAFT → CANCELLED.
+- **Integration.** Goods receipt POST → RECEIPT at the PO net unit cost;
+  sales order CONFIRMED → RESERVE in the company's default warehouse (shortage
+  = `SALES.STOCK_SHORTAGE`); delivery note SHIPPED → ISSUE consuming the hold;
+  sales order CANCELLED → UNRESERVE; production order RELEASE → RESERVE via the
+  gateway adapter (replaces the Phase 0 stub, T-328).

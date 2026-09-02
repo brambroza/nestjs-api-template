@@ -161,6 +161,7 @@ async function main(): Promise<void> {
           { action: 'manage', subject: 'Quotation' },
           { action: 'manage', subject: 'SalesOrder' },
           { action: 'manage', subject: 'DeliveryNote' },
+          { action: 'read', subject: 'StockMovement' },
           { action: 'read', subject: 'Company' },
           { action: 'read', subject: 'Customer' },
           { action: 'read', subject: 'Item' },
@@ -179,6 +180,7 @@ async function main(): Promise<void> {
           { action: 'manage', subject: 'PurchaseRequisition' },
           { action: 'manage', subject: 'PurchaseOrder' },
           { action: 'manage', subject: 'GoodsReceipt' },
+          { action: 'read', subject: 'StockMovement' },
           { action: 'read', subject: 'Company' },
           { action: 'read', subject: 'Vendor' },
           { action: 'read', subject: 'Item' },
@@ -186,6 +188,21 @@ async function main(): Promise<void> {
           { action: 'read', subject: 'Warehouse' },
           { action: 'read', subject: 'TaxCode' },
           { action: 'read', subject: 'Currency' },
+        ],
+      },
+      {
+        id: 'role-warehouse',
+        name: 'warehouse',
+        rules: [
+          { action: 'manage', subject: 'StockMovement' },
+          { action: 'manage', subject: 'StockTransfer' },
+          { action: 'manage', subject: 'DeliveryNote' },
+          { action: 'manage', subject: 'GoodsReceipt' },
+          { action: 'read', subject: 'SalesOrder' },
+          { action: 'read', subject: 'PurchaseOrder' },
+          { action: 'read', subject: 'Item' },
+          { action: 'read', subject: 'Warehouse' },
+          { action: 'read', subject: 'Uom' },
         ],
       },
       {
@@ -897,6 +914,60 @@ async function main(): Promise<void> {
       where: { productionOrderId: orderId },
     });
 
+    // Opening stock through the inventory ledger (EPIC-C.1): one RECEIPT
+    // per item into WH-MAIN, with matching balance, FIFO layer and average.
+    const openingAt = new Date('2026-09-01T01:00:00.000Z');
+    const opening = [
+      { key: 'raw', itemId: 'item-raw-a', sku: 'RAW-A', uom: 'KG', qty: 500n, unitCost: 50_00n, lot: { id: 'lot-raw-2609', number: 'RAW-2609', expiry: new Date('2027-09-01T00:00:00.000Z') }, serials: null as string[] | null },
+      { key: 'fin', itemId: 'item-fin-a', sku: 'FIN-A', uom: 'PCS', qty: 20n, unitCost: 900_00n, lot: null as { id: string; number: string; expiry: Date } | null, serials: Array.from({ length: 20 }, (_, i) => `FIN-A-${String(i + 1).padStart(4, '0')}`) as string[] | null },
+    ];
+    for (const o of opening) {
+      if (o.lot) {
+        await prisma.lot.upsert({
+          where: { tenantId_itemId_lotNumber: { tenantId, itemId: o.itemId, lotNumber: o.lot.number } },
+          update: {},
+          create: { id: o.lot.id, tenantId, itemId: o.itemId, lotNumber: o.lot.number, expiryDate: o.lot.expiry, createdAt: openingAt },
+        });
+      }
+      const movementId = `mov-open-${o.key}`;
+      await prisma.stockMovement.upsert({
+        where: { id: movementId },
+        update: {},
+        create: {
+          id: movementId, tenantId, warehouseId: 'wh-main', itemId: o.itemId, itemSku: o.sku, lotId: o.lot?.id ?? null,
+          uomCode: o.uom, type: 'RECEIPT', quantity: o.qty, unitCostMinor: o.unitCost, costMinor: o.unitCost * o.qty,
+          currency: 'THB', referenceType: 'OPENING_BALANCE', referenceId: 'seed', reason: 'Opening stock',
+          serialNumbers: o.serials ? JSON.stringify(o.serials) : null, occurredAt: openingAt, createdBy: 'user-admin',
+        },
+      });
+      const existingBalance = await prisma.stockBalance.findFirst({
+        where: { tenantId, warehouseId: 'wh-main', itemId: o.itemId, lotId: o.lot?.id ?? null },
+        select: { id: true },
+      });
+      if (!existingBalance) {
+        await prisma.stockBalance.create({
+          data: { id: `bal-open-${o.key}`, tenantId, warehouseId: 'wh-main', itemId: o.itemId, lotId: o.lot?.id ?? null, uomCode: o.uom, onHandQty: o.qty, reservedQty: 0n, version: 1 },
+        });
+      }
+      await prisma.costLayer.upsert({
+        where: { id: `layer-open-${o.key}` },
+        update: {},
+        create: { id: `layer-open-${o.key}`, tenantId, warehouseId: 'wh-main', itemId: o.itemId, lotId: o.lot?.id ?? null, movementId, receivedAt: openingAt, originalQty: o.qty, remainingQty: o.qty, unitCostMinor: o.unitCost, currency: 'THB' },
+      });
+      await prisma.averageCost.upsert({
+        where: { tenantId_itemId: { tenantId, itemId: o.itemId } },
+        update: {},
+        create: { id: `avg-${o.key}`, tenantId, itemId: o.itemId, quantity: o.qty, totalCostMinor: o.unitCost * o.qty, unitCostMinor: o.unitCost, currency: 'THB', version: 1 },
+      });
+      for (const sn of o.serials ?? []) {
+        await prisma.serialUnit.upsert({
+          where: { tenantId_itemId_serialNumber: { tenantId, itemId: o.itemId, serialNumber: sn } },
+          update: {},
+          create: { id: `sn-${sn.toLowerCase()}`, tenantId, itemId: o.itemId, serialNumber: sn, warehouseId: 'wh-main', lotId: null, status: 'IN_STOCK', lastMovementId: movementId, createdAt: openingAt },
+        });
+      }
+    }
+
     await prisma.stockLevel.upsert({
       where: { tenantId_sku: { tenantId, sku: 'RAW-A' } },
       update: { onHandValue: 500n, onHandUom: 'KG' },
@@ -912,7 +983,7 @@ async function main(): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(`Seeded tenant "${tenantId}".
   Roles: admin, master-data-editor, pdpa-officer, finance-admin, sales, sales-manager,
-    purchaser, purchasing-manager, creator, approver, planner, shopfloor
+    purchaser, purchasing-manager, warehouse, creator, approver, planner, shopfloor
   Users:
     admin@demo.local / admin123!    (roles: admin)
     operator@demo.local / operator123!  (roles: creator, planner, shopfloor)
@@ -932,7 +1003,9 @@ async function main(): Promise<void> {
     Sales orders: POST /sales-orders (direct or quotationId), submit -> credit check + SALES_ORDER policy
   Purchase: buyer@demo.local / buyer123! (purchaser) — PR (creator/purchaser) -> PO -> GRN with lot capture
   Partner: CUST-001 has 1 primary contact, 1 default BILLING address, 1 MARKETING consent
-  Order: ${orderId} (DRAFT, productSku FIN-A -> master BOM) + 500 KG RAW-A stock`);
+  Inventory (WH-MAIN, FIFO): 500 KG RAW-A lot RAW-2609 @ 50.00 (exp 2027-09-01), 20 PCS FIN-A @ 900.00
+    serials FIN-A-0001..0020; legacy stock_level row kept for the e2e suite
+  Order: ${orderId} (DRAFT, productSku FIN-A -> master BOM)`);
   } finally {
     await prisma.$disconnect();
   }

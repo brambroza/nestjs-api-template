@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { ApprovalModule } from '../../approval';
+import { InventoryModule } from '../../inventory';
 import { QuotationModule } from '../quotation';
 import { SalesSharedModule } from '../shared';
 
@@ -34,7 +35,12 @@ import { PrismaSalesOrderRepository } from './infrastructure/prisma-sales-order.
  * gateway) and approval (APPROVAL_GATEWAY).
  */
 @Module({
-  imports: [SalesSharedModule, QuotationModule, ApprovalModule],
+  imports: [
+    SalesSharedModule,
+    QuotationModule,
+    ApprovalModule,
+    InventoryModule,
+  ],
   controllers: [SalesOrderController, DeliveryNoteController],
   providers: [
     { provide: SALES_ORDER_REPOSITORY, useClass: PrismaSalesOrderRepository },

@@ -213,6 +213,23 @@ export const MESSAGES_TH: Readonly<Record<string, string>> = {
   'PURCHASE.ILLEGAL_GOODS_RECEIPT_TRANSITION':
     'ไม่สามารถเปลี่ยนสถานะใบรับสินค้าจากสถานะปัจจุบันได้',
   'PURCHASE.INVALID_GOODS_RECEIPT': 'ข้อมูลใบรับสินค้าไม่ถูกต้อง',
+
+  'SALES.STOCK_SHORTAGE': 'สินค้าคงคลังไม่เพียงพอสำหรับยืนยันใบสั่งขาย',
+  'INVENTORY.REF_INVALID': 'ข้อมูลอ้างอิง (สินค้า/คลัง/ล็อต) ไม่ถูกต้อง',
+  'INVENTORY.INVALID_MOVEMENT': 'ข้อมูลรายการเคลื่อนไหวสต็อกไม่ถูกต้อง',
+  'INVENTORY.INSUFFICIENT_STOCK': 'สินค้าคงคลังไม่เพียงพอ',
+  'INVENTORY.RESERVATION_EXCEEDS_STOCK': 'จำนวนที่จองเกินสินค้าคงคลังที่มี',
+  'INVENTORY.LOT_REQUIRED': 'สินค้านี้ต้องระบุหมายเลขล็อต',
+  'INVENTORY.SERIAL_MISMATCH': 'จำนวนหมายเลขซีเรียลไม่ตรงกับจำนวนสินค้า',
+  'INVENTORY.SERIAL_NOT_AVAILABLE':
+    'หมายเลขซีเรียลนี้ไม่พร้อมใช้งานในคลังที่ระบุ',
+  'INVENTORY.VERSION_CONFLICT':
+    'ข้อมูลสต็อกถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณาลองอีกครั้ง',
+  'INVENTORY.TRANSFER_NOT_FOUND': 'ไม่พบใบโอนสินค้าที่ระบุ',
+  'INVENTORY.ILLEGAL_TRANSFER_TRANSITION':
+    'ไม่สามารถเปลี่ยนสถานะใบโอนสินค้าจากสถานะปัจจุบันได้',
+  'INVENTORY.INVALID_TRANSFER': 'ข้อมูลใบโอนสินค้าไม่ถูกต้อง',
+  'INVENTORY.NO_DEFAULT_WAREHOUSE': 'ยังไม่ได้กำหนดคลังสินค้าหลักของบริษัท',
 };
 
 const FALLBACK_TH = 'เกิดข้อผิดพลาดที่ไม่คาดคิด';

@@ -35,6 +35,8 @@ model Tenant {
   dualApprovalThresholdSatang    BigInt
   overToleranceBasisPoints       BigInt
   underToleranceBasisPoints      BigInt
+  /// FIFO | WEIGHTED_AVG — inventory costing engine (EPIC-C.1).
+  costingMethod                  String   @default("FIFO") @db.NVarChar(16)
   createdAt                      DateTime @default(now()) @db.DateTime2
   updatedAt                      DateTime @updatedAt @db.DateTime2
 
@@ -85,6 +87,15 @@ model Tenant {
   purchaseOrderLines             PurchaseOrderLine[]
   goodsReceipts                  GoodsReceipt[]
   goodsReceiptLines              GoodsReceiptLine[]
+  lots                           Lot[]
+  serialUnits                    SerialUnit[]
+  stockBalances                  StockBalance[]
+  stockMovements                 StockMovement[]
+  costLayers                     CostLayer[]
+  averageCosts                   AverageCost[]
+  reservations                   StockReservation[]
+  stockTransfers                 StockTransfer[]
+  stockTransferLines             StockTransferLine[]
 
   @@map("tenant")
 }
@@ -1371,4 +1382,200 @@ model GoodsReceiptLine {
   @@unique([goodsReceiptId, lineNo])
   @@index([tenantId, purchaseOrderLineId])
   @@map("pur_goods_receipt_line")
+}
+
+// ---------------------------------------------------------------------------
+// Inventory (EPIC-C.1) — append-only movement ledger + projected balances
+// ---------------------------------------------------------------------------
+
+model Lot {
+  id         String    @id @db.NVarChar(36)
+  tenantId   String    @db.NVarChar(36)
+  itemId     String    @db.NVarChar(36)
+  lotNumber  String    @db.NVarChar(64)
+  expiryDate DateTime? @db.Date
+  createdAt  DateTime  @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, itemId, lotNumber])
+  @@index([tenantId, expiryDate])
+  @@map("inv_lot")
+}
+
+/// One row per serialised unit. status: IN_STOCK | RESERVED | ISSUED.
+model SerialUnit {
+  id           String    @id @db.NVarChar(36)
+  tenantId     String    @db.NVarChar(36)
+  itemId       String    @db.NVarChar(36)
+  serialNumber String    @db.NVarChar(64)
+  warehouseId  String?   @db.NVarChar(36)
+  lotId        String?   @db.NVarChar(36)
+  status       String    @db.NVarChar(12)
+  lastMovementId String? @db.NVarChar(36)
+  createdAt    DateTime  @db.DateTime2
+  updatedAt    DateTime  @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, itemId, serialNumber])
+  @@index([tenantId, serialNumber])
+  @@map("inv_serial")
+}
+
+/// Projection of the ledger per (warehouse, item, lot). available = onHand − reserved.
+model StockBalance {
+  id          String   @id @db.NVarChar(36)
+  tenantId    String   @db.NVarChar(36)
+  warehouseId String   @db.NVarChar(36)
+  itemId      String   @db.NVarChar(36)
+  lotId       String?  @db.NVarChar(36)
+  uomCode     String   @db.NVarChar(16)
+  onHandQty   BigInt   @default(0)
+  reservedQty BigInt   @default(0)
+  version     Int      @default(0)
+  updatedAt   DateTime @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, warehouseId, itemId, lotId])
+  @@index([tenantId, itemId])
+  @@map("inv_stock_balance")
+}
+
+/// Append-only. type: RECEIPT | ISSUE | TRANSFER_OUT | TRANSFER_IN | RESERVE |
+/// UNRESERVE | ADJUST_IN | ADJUST_OUT. quantity is always positive; the
+/// type carries the sign. costMinor = value moved (receipts: qty × unit
+/// cost; issues: FIFO / average consumption), for the GL (EPIC-C.4).
+model StockMovement {
+  id            String   @id @db.NVarChar(36)
+  tenantId      String   @db.NVarChar(36)
+  warehouseId   String   @db.NVarChar(36)
+  itemId        String   @db.NVarChar(36)
+  itemSku       String   @db.NVarChar(64)
+  lotId         String?  @db.NVarChar(36)
+  uomCode       String   @db.NVarChar(16)
+  type          String   @db.NVarChar(16)
+  quantity      BigInt
+  unitCostMinor BigInt   @default(0)
+  costMinor     BigInt   @default(0)
+  currency      String   @db.NVarChar(3)
+  referenceType String   @db.NVarChar(32)
+  referenceId   String   @db.NVarChar(36)
+  reason        String?  @db.NVarChar(500)
+  serialNumbers String?  @db.NVarChar(Max)
+  occurredAt    DateTime @db.DateTime2
+  createdBy     String   @db.NVarChar(64)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([tenantId, itemId, occurredAt])
+  @@index([tenantId, warehouseId, occurredAt])
+  @@index([tenantId, referenceType, referenceId])
+  @@map("inv_stock_movement")
+}
+
+/// FIFO layers: one per receipt, consumed oldest first.
+model CostLayer {
+  id            String   @id @db.NVarChar(36)
+  tenantId      String   @db.NVarChar(36)
+  warehouseId   String   @db.NVarChar(36)
+  itemId        String   @db.NVarChar(36)
+  lotId         String?  @db.NVarChar(36)
+  movementId    String   @db.NVarChar(36)
+  receivedAt    DateTime @db.DateTime2
+  originalQty   BigInt
+  remainingQty  BigInt
+  unitCostMinor BigInt
+  currency      String   @db.NVarChar(3)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([tenantId, warehouseId, itemId, receivedAt])
+  @@map("inv_cost_layer")
+}
+
+/// Weighted-average cost per (tenant, item); maintained on every receipt.
+model AverageCost {
+  id            String   @id @db.NVarChar(36)
+  tenantId      String   @db.NVarChar(36)
+  itemId        String   @db.NVarChar(36)
+  quantity      BigInt   @default(0)
+  totalCostMinor BigInt  @default(0)
+  unitCostMinor BigInt   @default(0)
+  currency      String   @db.NVarChar(3)
+  version       Int      @default(0)
+  updatedAt     DateTime @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, itemId])
+  @@map("inv_average_cost")
+}
+
+/// Active holds per document. status: ACTIVE | RELEASED | CONSUMED.
+model StockReservation {
+  id            String   @id @db.NVarChar(36)
+  tenantId      String   @db.NVarChar(36)
+  warehouseId   String   @db.NVarChar(36)
+  itemId        String   @db.NVarChar(36)
+  lotId         String?  @db.NVarChar(36)
+  uomCode       String   @db.NVarChar(16)
+  quantity      BigInt
+  status        String   @db.NVarChar(12)
+  referenceType String   @db.NVarChar(32)
+  referenceId   String   @db.NVarChar(36)
+  createdAt     DateTime @db.DateTime2
+  updatedAt     DateTime @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([tenantId, referenceType, referenceId, status])
+  @@index([tenantId, warehouseId, itemId, status])
+  @@map("inv_reservation")
+}
+
+/// Warehouse-to-warehouse transfer. status: DRAFT | IN_TRANSIT | RECEIVED | CANCELLED.
+model StockTransfer {
+  id              String    @id @db.NVarChar(36)
+  tenantId        String    @db.NVarChar(36)
+  number          String    @db.NVarChar(24)
+  fromWarehouseId String    @db.NVarChar(36)
+  toWarehouseId   String    @db.NVarChar(36)
+  status          String    @db.NVarChar(12)
+  notes           String?   @db.NVarChar(Max)
+  version         Int       @default(0)
+  createdBy       String    @db.NVarChar(64)
+  shippedAt       DateTime? @db.DateTime2
+  receivedAt      DateTime? @db.DateTime2
+  createdAt       DateTime  @db.DateTime2
+  updatedAt       DateTime  @updatedAt @db.DateTime2
+
+  tenant Tenant              @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lines  StockTransferLine[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@map("inv_transfer")
+}
+
+model StockTransferLine {
+  id            String  @id @db.NVarChar(36)
+  tenantId      String  @db.NVarChar(36)
+  transferId    String  @db.NVarChar(36)
+  lineNo        Int
+  itemId        String  @db.NVarChar(36)
+  itemSku       String  @db.NVarChar(64)
+  lotId         String? @db.NVarChar(36)
+  uomCode       String  @db.NVarChar(16)
+  quantity      BigInt
+  /// Cost carried from the source warehouse at ship time (re-layered at destination).
+  unitCostMinor BigInt  @default(0)
+  serialNumbers String? @db.NVarChar(Max)
+
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  transfer StockTransfer @relation(fields: [transferId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([transferId, lineNo])
+  @@map("inv_transfer_line")
 }

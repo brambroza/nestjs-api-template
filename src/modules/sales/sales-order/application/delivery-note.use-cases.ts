@@ -13,6 +13,7 @@ import {
   TRANSACTION_MANAGER,
   type TransactionManager,
 } from '../../../../shared/transaction';
+import { INVENTORY_GATEWAY, type InventoryGateway } from '../../../inventory';
 import {
   SALES_REF_LOOKUP,
   SalesRefInvalidError,
@@ -38,6 +39,7 @@ import {
   SALES_ORDER_REPOSITORY,
   type SalesOrderRepository,
 } from './ports/sales-order.repository';
+import { SALES_ORDER_STOCK_REFERENCE } from './sales-order.use-cases';
 
 export const DELIVERY_NOTE_NUMBER_PREFIX = 'DN';
 
@@ -172,6 +174,7 @@ export class ShipDeliveryNoteUseCase {
     @Inject(TRANSACTION_MANAGER) private readonly tx: TransactionManager,
     @Inject(TENANT_CONTEXT) private readonly tenant: TenantContext,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(INVENTORY_GATEWAY) private readonly inventory: InventoryGateway,
   ) {}
 
   async execute(input: DeliveryNoteActionInput): Promise<DeliveryNote> {
@@ -196,6 +199,26 @@ export class ShipDeliveryNoteUseCase {
         ),
       );
       const ds = delivered.snapshot();
+      // T-213/T-214: stock leaves the warehouse with the goods, consuming the order's hold first.
+      await this.inventory.issue({
+        warehouseId: ns.warehouseId,
+        companyId: ds.companyId,
+        currency: ds.currency,
+        referenceType: SALES_ORDER_STOCK_REFERENCE,
+        referenceId: ds.id,
+        consumeReservations: true,
+        lines: ns.lines.map((l) => ({
+          itemId: l.itemId,
+          quantity: l.quantity,
+          uomCode: l.uomCode,
+        })),
+      });
+      if (ds.status === SalesOrderStatus.Delivered) {
+        await this.inventory.release({
+          referenceType: SALES_ORDER_STOCK_REFERENCE,
+          referenceId: ds.id,
+        });
+      }
       await this.outbox.enqueue({
         idempotencyKey: `${ds.id}:delivered:${shipped.id}`,
         event: {

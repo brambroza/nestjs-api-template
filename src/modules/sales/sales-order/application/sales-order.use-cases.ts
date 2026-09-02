@@ -14,6 +14,7 @@ import {
   type TransactionManager,
 } from '../../../../shared/transaction';
 import { APPROVAL_GATEWAY, type ApprovalGateway } from '../../../approval';
+import { INVENTORY_GATEWAY, type InventoryGateway } from '../../../inventory';
 import {
   QUOTATION_CONVERSION,
   QuotationStatus,
@@ -35,6 +36,7 @@ import {
   SalesOrder,
   SalesOrderNotFoundError,
   SalesOrderVersionConflictError,
+  SalesStockShortageError,
   type CreditCheck,
   type SalesOrderEvent,
   type SalesOrderStatus,
@@ -79,6 +81,33 @@ function assertExpectedVersion(
 ): void {
   if (expected !== null && expected !== undefined && expected !== so.version) {
     throw new SalesOrderVersionConflictError(so.id, expected, so.version);
+  }
+}
+
+export const SALES_ORDER_STOCK_REFERENCE = 'SALES_ORDER';
+
+/** T-213: hold stock for every line in the company's default warehouse. */
+export async function reserveForOrder(
+  inventory: InventoryGateway,
+  so: SalesOrder,
+): Promise<void> {
+  const s = so.snapshot();
+  const outcome = await inventory.reserve({
+    companyId: s.companyId,
+    referenceType: SALES_ORDER_STOCK_REFERENCE,
+    referenceId: s.id,
+    lines: s.lines.map((l) => ({
+      itemId: l.itemId,
+      quantity: l.quantity,
+      uomCode: l.uomCode,
+    })),
+  });
+  if (outcome.kind === 'shortage') {
+    throw new SalesStockShortageError(
+      s.id,
+      outcome.warehouseId,
+      outcome.shortages,
+    );
   }
 }
 
@@ -297,6 +326,7 @@ export class SubmitSalesOrderUseCase {
     @Inject(TRANSACTION_MANAGER) private readonly tx: TransactionManager,
     @Inject(TENANT_CONTEXT) private readonly tenant: TenantContext,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(INVENTORY_GATEWAY) private readonly inventory: InventoryGateway,
   ) {}
 
   async execute(input: OrderActionInput): Promise<SalesOrder> {
@@ -356,6 +386,7 @@ export class SubmitSalesOrderUseCase {
         },
       });
       if (ns.status === 'CONFIRMED') {
+        await reserveForOrder(this.inventory, saved);
         await this.outbox.enqueue({
           idempotencyKey: `${ns.id}:confirmed:${outcome.requestId}`,
           event: resolvedEvent(saved, 'sales_order.confirmed.v1', userId, now),
@@ -376,6 +407,7 @@ export class ConfirmSalesOrderUseCase {
     @Inject(TRANSACTION_MANAGER) private readonly tx: TransactionManager,
     @Inject(TENANT_CONTEXT) private readonly tenant: TenantContext,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(INVENTORY_GATEWAY) private readonly inventory: InventoryGateway,
   ) {}
 
   async execute(input: OrderActionInput): Promise<SalesOrder> {
@@ -394,6 +426,7 @@ export class ConfirmSalesOrderUseCase {
       const saved = await this.repo.save(next);
       const key = state.requestId ?? 'none';
       if (saved.status === 'CONFIRMED') {
+        await reserveForOrder(this.inventory, saved);
         await this.outbox.enqueue({
           idempotencyKey: `${saved.id}:confirmed:${key}`,
           event: resolvedEvent(saved, 'sales_order.confirmed.v1', userId, now),
@@ -437,6 +470,7 @@ export class CancelSalesOrderUseCase {
     @Inject(TRANSACTION_MANAGER) private readonly tx: TransactionManager,
     @Inject(TENANT_CONTEXT) private readonly tenant: TenantContext,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(INVENTORY_GATEWAY) private readonly inventory: InventoryGateway,
   ) {}
 
   async execute(input: OrderActionInput): Promise<SalesOrder> {
