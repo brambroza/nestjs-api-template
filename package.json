@@ -20,7 +20,11 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "arch:check": "depcruise --config .dependency-cruiser.cjs --output-type err src",
     "arch:graph": "depcruise --config .dependency-cruiser.cjs --output-type dot src | dot -T svg > .dependency-cruiser-report/graph.svg",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
     "@casl/ability": "^6.8.1",
