@@ -51,3 +51,19 @@ export {
   ExpiryAlertUseCase,
   type ExpiryAlertResult,
 } from './expiry-alert.use-case';
+export {
+  COUNT_DOCUMENT_TYPE,
+  COUNT_NUMBER_PREFIX,
+  COUNT_REFERENCE_TYPE,
+  CancelCountUseCase,
+  CreateCountSheetUseCase,
+  GetCountUseCase,
+  ListCountsUseCase,
+  PostCountUseCase,
+  RecordCountsUseCase,
+  RecountUseCase,
+  StartCountUseCase,
+  SubmitCountUseCase,
+  type CountActionInput,
+  type CreateCountInput,
+} from './physical-count.use-cases';

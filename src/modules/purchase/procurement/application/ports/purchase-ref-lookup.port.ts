@@ -31,4 +31,9 @@ export interface PurchaseRefLookup {
   findItem(tenantId: string, itemId: string): Promise<ItemRef | null>;
   currencyExists(tenantId: string, code: string): Promise<boolean>;
   warehouseExists(tenantId: string, warehouseId: string): Promise<boolean>;
+  /** Company that owns the warehouse (via its branch); null when unknown. */
+  findWarehouseCompany(
+    tenantId: string,
+    warehouseId: string,
+  ): Promise<string | null>;
 }

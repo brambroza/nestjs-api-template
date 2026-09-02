@@ -74,3 +74,17 @@ export type {
   MovementPostedEvent,
   TransferEvent,
 } from './events';
+export {
+  CountApprovalPendingError,
+  CountNotFoundError,
+  CountStatus,
+  IllegalCountTransitionError,
+  InvalidCountError,
+  StockCount,
+  isCountStatus,
+  type CountEntry,
+  type CountLineInput,
+  type CountLineSnapshot,
+  type CreateCountProps,
+  type StockCountSnapshot,
+} from './physical-count';

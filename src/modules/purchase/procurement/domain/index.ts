@@ -63,3 +63,10 @@ export type {
   PurchaseOrderEvent,
   RequisitionEvent,
 } from './events';
+export {
+  InvalidReorderRuleError,
+  REORDER_COOLDOWN_DAYS,
+  needsReorder,
+  validateReorderRule,
+  type ReorderRuleSnapshot,
+} from './reorder-rule';

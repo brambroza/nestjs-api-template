@@ -5,15 +5,18 @@ import type { TransactionManager } from '../../../../shared/transaction';
 import {
   CostingMethod,
   InventoryVersionConflictError,
+  StockCount,
   StockTransfer,
   type AverageCostSnapshot,
   type CostLayerSnapshot,
+  type CountStatus,
   type LotSnapshot,
   type SerialUnitSnapshot,
   type StockBalanceSnapshot,
   type StockMovementSnapshot,
   type TransferStatus,
 } from '../../domain';
+import type { CountRepository } from '../ports/count.repository';
 import type {
   InventoryRefLookup,
   ItemRef,
@@ -374,4 +377,51 @@ export function tenantOf(tenantId: string, userId: string): TenantContext {
     getUserId: () => userId,
     tryGetUserId: () => userId,
   };
+}
+
+export class InMemoryCounts implements CountRepository {
+  readonly rows = new Map<string, StockCount>();
+  async findById(tenantId: string, id: string): Promise<StockCount | null> {
+    const c = this.rows.get(id);
+    return c && c.snapshot().tenantId === tenantId ? c : null;
+  }
+  async list(
+    tenantId: string,
+    f: {
+      warehouseId?: string | null;
+      status?: CountStatus | null;
+      limit: number;
+      offset: number;
+    },
+  ) {
+    const all = [...this.rows.values()].filter(
+      (c) =>
+        c.snapshot().tenantId === tenantId &&
+        (!f.warehouseId || c.snapshot().warehouseId === f.warehouseId) &&
+        (!f.status || c.status === f.status),
+    );
+    return {
+      items: all.slice(f.offset, f.offset + f.limit),
+      total: all.length,
+    };
+  }
+  async create(c: StockCount): Promise<void> {
+    this.rows.set(c.id, c);
+  }
+  async save(c: StockCount): Promise<StockCount> {
+    const stored = this.rows.get(c.id);
+    if (!stored || stored.version !== c.version) {
+      throw new InventoryVersionConflictError(
+        c.id,
+        c.version,
+        stored?.version ?? -1,
+      );
+    }
+    const next = StockCount.fromSnapshot({
+      ...c.snapshot(),
+      version: c.version + 1,
+    });
+    this.rows.set(c.id, next);
+    return next;
+  }
 }

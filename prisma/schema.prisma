@@ -96,6 +96,9 @@ model Tenant {
   reservations                   StockReservation[]
   stockTransfers                 StockTransfer[]
   stockTransferLines             StockTransferLine[]
+  stockCounts                    StockCount[]
+  stockCountLines                StockCountLine[]
+  reorderRules                   ReorderRule[]
 
   @@map("tenant")
 }
@@ -1578,4 +1581,72 @@ model StockTransferLine {
 
   @@unique([transferId, lineNo])
   @@map("inv_transfer_line")
+}
+
+/// Physical count (T-325). status: DRAFT | COUNTING | REVIEW | POSTED | CANCELLED.
+model StockCount {
+  id                String    @id @db.NVarChar(36)
+  tenantId          String    @db.NVarChar(36)
+  number            String    @db.NVarChar(24)
+  warehouseId       String    @db.NVarChar(36)
+  status            String    @db.NVarChar(12)
+  notes             String?   @db.NVarChar(Max)
+  approvalRequestId String?   @db.NVarChar(36)
+  version           Int       @default(0)
+  createdBy         String    @db.NVarChar(64)
+  countedAt         DateTime? @db.DateTime2
+  postedAt          DateTime? @db.DateTime2
+  createdAt         DateTime  @db.DateTime2
+  updatedAt         DateTime  @updatedAt @db.DateTime2
+
+  tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lines  StockCountLine[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, warehouseId, status])
+  @@map("inv_count")
+}
+
+model StockCountLine {
+  id            String  @id @db.NVarChar(36)
+  tenantId      String  @db.NVarChar(36)
+  countId       String  @db.NVarChar(36)
+  lineNo        Int
+  itemId        String  @db.NVarChar(36)
+  itemSku       String  @db.NVarChar(64)
+  lotId         String? @db.NVarChar(36)
+  lotNumber     String? @db.NVarChar(64)
+  uomCode       String  @db.NVarChar(16)
+  systemQty     BigInt
+  countedQty    BigInt?
+  varianceQty   BigInt  @default(0)
+  unitCostMinor BigInt  @default(0)
+
+  tenant Tenant     @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  count  StockCount @relation(fields: [countId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([countId, lineNo])
+  @@map("inv_count_line")
+}
+
+/// Reorder point per (warehouse, item) (T-326). The nightly sweep raises a
+/// purchase requisition when available <= reorderPoint, at most once per cooldown.
+model ReorderRule {
+  id                String    @id @db.NVarChar(36)
+  tenantId          String    @db.NVarChar(36)
+  warehouseId       String    @db.NVarChar(36)
+  itemId            String    @db.NVarChar(36)
+  reorderPoint      BigInt
+  reorderQty        BigInt
+  preferredVendorId String?   @db.NVarChar(36)
+  isActive          Boolean   @default(true)
+  lastTriggeredAt   DateTime? @db.DateTime2
+  createdAt         DateTime  @db.DateTime2
+  updatedAt         DateTime  @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, warehouseId, itemId])
+  @@index([tenantId, isActive])
+  @@map("pur_reorder_rule")
 }

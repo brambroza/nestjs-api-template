@@ -142,6 +142,7 @@ async function main(): Promise<void> {
         id: 'role-purchasing-manager',
         name: 'purchasing-manager',
         rules: [
+          { action: 'manage', subject: 'ReorderRule' },
           { action: 'manage', subject: 'PurchaseRequisition' },
           { action: 'manage', subject: 'PurchaseOrder' },
           { action: 'manage', subject: 'GoodsReceipt' },
@@ -180,6 +181,7 @@ async function main(): Promise<void> {
           { action: 'manage', subject: 'PurchaseRequisition' },
           { action: 'manage', subject: 'PurchaseOrder' },
           { action: 'manage', subject: 'GoodsReceipt' },
+          { action: 'manage', subject: 'ReorderRule' },
           { action: 'read', subject: 'StockMovement' },
           { action: 'read', subject: 'Company' },
           { action: 'read', subject: 'Vendor' },
@@ -196,6 +198,7 @@ async function main(): Promise<void> {
         rules: [
           { action: 'manage', subject: 'StockMovement' },
           { action: 'manage', subject: 'StockTransfer' },
+          { action: 'manage', subject: 'StockCount' },
           { action: 'manage', subject: 'DeliveryNote' },
           { action: 'manage', subject: 'GoodsReceipt' },
           { action: 'read', subject: 'SalesOrder' },
@@ -452,6 +455,16 @@ async function main(): Promise<void> {
       create: { userId: 'user-buyer', roleId: 'role-purchaser' },
     });
 
+    // Reorder point (T-326): RAW-A in WH-MAIN, 500 KG from VEND-001 when available <= 100 KG.
+    await prisma.reorderRule.upsert({
+      where: { tenantId_warehouseId_itemId: { tenantId, warehouseId: 'wh-main', itemId: 'item-raw-a' } },
+      update: { reorderPoint: 100n, reorderQty: 500n, preferredVendorId: 'vend-001', isActive: true },
+      create: {
+        id: 'ror-raw-a', tenantId, warehouseId: 'wh-main', itemId: 'item-raw-a',
+        reorderPoint: 100n, reorderQty: 500n, preferredVendorId: 'vend-001', isActive: true, createdAt: new Date('2026-09-01T00:00:00.000Z'),
+      },
+    });
+
     // Approval matrices (EPIC-B.4). Amounts in satang.
     const policiesSeed = [
       {
@@ -465,6 +478,12 @@ async function main(): Promise<void> {
         id: 'apv-pr', documentType: 'PURCHASE_REQUISITION', name: 'PR approval',
         steps: [
           { id: 'apv-pr-1', stepNo: 1, name: 'Purchasing manager', approverRole: 'purchasing-manager', minAmountMinor: null as bigint | null },
+        ],
+      },
+      {
+        id: 'apv-adj', documentType: 'STOCK_ADJUSTMENT', name: 'Stock adjustment (>= 10,000)',
+        steps: [
+          { id: 'apv-adj-1', stepNo: 1, name: 'Finance', approverRole: 'finance-admin', minAmountMinor: 10_000_00n as bigint | null },
         ],
       },
       {
@@ -997,7 +1016,7 @@ async function main(): Promise<void> {
     FY2026 for co-demo (periods 1-6 LOCKED, 7-12 OPEN)
   Approval: manager@demo.local / manager123! (sales-manager, purchasing-manager, approver)
     policies SALES_ORDER (mgr; finance >= 500k), PURCHASE_REQUISITION (mgr),
-    PURCHASE_ORDER (mgr; finance >= 200k; admin >= 2M)
+    PURCHASE_ORDER (mgr; finance >= 200k; admin >= 2M), STOCK_ADJUSTMENT (finance >= 10k)
   Sales: sales@demo.local / sales123! (sales) — quotation QT-202609-0001 rev 1 DRAFT
     (10 x FIN-A @ 1,400.00 + VAT 7% = 14,980.00, valid until 2026-09-30)
     Sales orders: POST /sales-orders (direct or quotationId), submit -> credit check + SALES_ORDER policy
@@ -1005,6 +1024,7 @@ async function main(): Promise<void> {
   Partner: CUST-001 has 1 primary contact, 1 default BILLING address, 1 MARKETING consent
   Inventory (WH-MAIN, FIFO): 500 KG RAW-A lot RAW-2609 @ 50.00 (exp 2027-09-01), 20 PCS FIN-A @ 900.00
     serials FIN-A-0001..0020; legacy stock_level row kept for the e2e suite
+    reorder rule RAW-A @ WH-MAIN: point 100 KG -> PR 500 KG from VEND-001 (cron 00:30)
   Order: ${orderId} (DRAFT, productSku FIN-A -> master BOM)`);
   } finally {
     await prisma.$disconnect();

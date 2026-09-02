@@ -31,3 +31,9 @@ export {
   type PurchaseOutbox,
   type PurchaseOutboxEnvelope,
 } from './outbox.port';
+export {
+  REORDER_RULE_REPOSITORY,
+  STOCK_AVAILABILITY_LOOKUP,
+  type ReorderRuleRepository,
+  type StockAvailabilityLookup,
+} from './reorder.ports';

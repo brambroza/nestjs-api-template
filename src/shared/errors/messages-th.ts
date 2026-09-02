@@ -230,6 +230,12 @@ export const MESSAGES_TH: Readonly<Record<string, string>> = {
     'ไม่สามารถเปลี่ยนสถานะใบโอนสินค้าจากสถานะปัจจุบันได้',
   'INVENTORY.INVALID_TRANSFER': 'ข้อมูลใบโอนสินค้าไม่ถูกต้อง',
   'INVENTORY.NO_DEFAULT_WAREHOUSE': 'ยังไม่ได้กำหนดคลังสินค้าหลักของบริษัท',
+  'INVENTORY.COUNT_NOT_FOUND': 'ไม่พบใบตรวจนับสต็อกที่ระบุ',
+  'INVENTORY.ILLEGAL_COUNT_TRANSITION':
+    'ไม่สามารถเปลี่ยนสถานะใบตรวจนับจากสถานะปัจจุบันได้',
+  'INVENTORY.INVALID_COUNT': 'ข้อมูลใบตรวจนับสต็อกไม่ถูกต้อง',
+  'INVENTORY.COUNT_APPROVAL_PENDING': 'รายการปรับปรุงสต็อกยังรอการอนุมัติอยู่',
+  'PURCHASE.INVALID_REORDER_RULE': 'ข้อมูลจุดสั่งซื้อซ้ำไม่ถูกต้อง',
 };
 
 const FALLBACK_TH = 'เกิดข้อผิดพลาดที่ไม่คาดคิด';

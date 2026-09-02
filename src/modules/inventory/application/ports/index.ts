@@ -28,3 +28,4 @@ export {
   type InventoryOutbox,
   type InventoryOutboxEnvelope,
 } from './outbox.port';
+export { COUNT_REPOSITORY, type CountRepository } from './count.repository';

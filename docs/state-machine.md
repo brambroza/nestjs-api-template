@@ -190,3 +190,19 @@ writer) and `domain/{balance,costing,lot,serial,transfer}.ts` (pure rules).
   = `SALES.STOCK_SHORTAGE`); delivery note SHIPPED → ISSUE consuming the hold;
   sales order CANCELLED → UNRESERVE; production order RELEASE → RESERVE via the
   gateway adapter (replaces the Phase 0 stub, T-328).
+
+## Physical count (T-325)
+
+DRAFT → COUNTING → REVIEW → POSTED; REVIEW → COUNTING (recount); DRAFT/COUNTING/REVIEW → CANCELLED.
+The sheet freezes system quantities per (item, lot); variances are valued at the
+item's average cost and go through the `STOCK_ADJUSTMENT` approval matrix.
+`POST /inventory/counts/:id/post` applies the outcome: APPROVED posts ADJUST_IN /
+ADJUST_OUT through the ledger (reference STOCK_COUNT), REJECTED sends the sheet
+back to counting.
+
+## Reorder point (T-326)
+
+`pur_reorder_rule` per (warehouse, item). The nightly sweep (00:30 Bangkok,
+one CLS scope per tenant, requester `system`) raises one purchase requisition
+per (company, preferred vendor) for every active rule whose available quantity
+is at or below the point, then holds that rule for a 7-day cooldown.

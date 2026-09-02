@@ -185,6 +185,9 @@ export class InMemoryPurchaseRefLookup implements PurchaseRefLookup {
   async warehouseExists(_t: string, id: string): Promise<boolean> {
     return this.warehouses.has(id);
   }
+  async findWarehouseCompany(): Promise<string | null> {
+    return 'co';
+  }
 }
 
 export class InMemoryPurchaseTax implements PurchaseTax {

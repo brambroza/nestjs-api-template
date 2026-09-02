@@ -71,4 +71,15 @@ export class PrismaPurchaseRefLookup implements PurchaseRefLookup {
     });
     return row !== null;
   }
+
+  async findWarehouseCompany(
+    tenantId: string,
+    warehouseId: string,
+  ): Promise<string | null> {
+    const row = await this.txm.getClient().warehouse.findFirst({
+      where: { tenantId, id: warehouseId },
+      select: { branch: { select: { companyId: true } } },
+    });
+    return row?.branch.companyId ?? null;
+  }
 }
