@@ -64,6 +64,20 @@ export const EnvSchema = z.object({
   OUTBOX_MAX_ATTEMPTS: intFromString(7),
 
   SHUTDOWN_GRACE_MS: intFromString(20_000),
+
+  /** Comma-separated CORS origin whitelist. Empty = deny cross-origin.
+   * Use "*" to allow any (dev only). */
+  CORS_ORIGINS: z.string().trim().default(''),
+  /** Global API prefix (before controller routes). */
+  API_PREFIX: nonEmpty.default('api/v1'),
+  /** Max request body size accepted by the JSON parser. */
+  BODY_LIMIT: nonEmpty.default('1mb'),
+  /** Requests slower than this get a warn-level log entry. */
+  SLOW_REQUEST_MS: intFromString(1_000),
+
+  /** Global throttler: N requests per TTL_MS per client. */
+  RATE_LIMIT_TTL_MS: intFromString(60_000),
+  RATE_LIMIT_REQUESTS: intFromString(120),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

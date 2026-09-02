@@ -11,8 +11,10 @@ import { AppConfigModule } from './shared/config';
 import { DatabaseModule } from './shared/database';
 import { DomainExceptionFilter } from './shared/errors';
 import { HealthModule } from './shared/health';
+import { IdempotencyModule } from './shared/idempotency/idempotency.module';
 import { LoggingInterceptor, TimeoutInterceptor } from './shared/interceptors';
 import { AppLoggerModule } from './shared/logging';
+import { AppThrottlerModule } from './shared/throttler/throttler.module';
 import { GlobalValidationModule } from './shared/validation/validation.module';
 
 @Module({
@@ -23,6 +25,8 @@ import { GlobalValidationModule } from './shared/validation/validation.module';
     AppLoggerModule,
     DatabaseModule,
     AuthModule,
+    AppThrottlerModule,
+    IdempotencyModule,
     GlobalValidationModule,
     HealthModule,
     ProductionOrderModule,
