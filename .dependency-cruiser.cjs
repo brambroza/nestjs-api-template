@@ -11,7 +11,17 @@
  * Rules below match src paths only. Test files (spec files and the test/
  * directory) are exempted from most rules because a domain unit test may of
  * course import the domain code it is testing.
+ *
+ * Nested modules: some top-level folders are containers of sub-modules
+ * (e.g. src/modules/master-data/customer). Every rule treats
+ * `<container>/<sub>` as the module boundary, so customer/domain is
+ * guarded exactly like production-order/domain, and customer must not
+ * reach into vendor/application. Add a folder to CONTAINERS when you
+ * introduce another such grouping.
  */
+
+const CONTAINERS = ['master-data'];
+const MODULE = `((?:(?:${CONTAINERS.join('|')})/)?[^/]+)`;
 
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
@@ -21,7 +31,7 @@ module.exports = {
       comment:
         'Domain layer must be framework-free: no @nestjs/common decorators, no HTTP concerns.',
       severity: 'error',
-      from: { path: '^src/modules/[^/]+/domain(/|$)' },
+      from: { path: `^src/modules/${MODULE}/domain(/|$)` },
       to: {
         path: [
           '^node_modules/@nestjs/(common|core|platform-express|platform-fastify|swagger|passport|jwt|throttler|terminus|schedule|bullmq|config|axios)',
@@ -32,7 +42,7 @@ module.exports = {
       name: 'no-orm-in-domain',
       comment: 'Domain must not know about the persistence technology.',
       severity: 'error',
-      from: { path: '^src/modules/[^/]+/domain(/|$)' },
+      from: { path: `^src/modules/${MODULE}/domain(/|$)` },
       to: {
         path: [
           '^node_modules/@prisma/client',
@@ -50,7 +60,7 @@ module.exports = {
       comment:
         'Dependencies flow inward. domain -> application/infrastructure/api is forbidden.',
       severity: 'error',
-      from: { path: '^src/modules/([^/]+)/domain(/|$)' },
+      from: { path: `^src/modules/${MODULE}/domain(/|$)` },
       to: { path: '^src/modules/$1/(application|infrastructure|api)(/|$)' },
     },
     {
@@ -58,7 +68,7 @@ module.exports = {
       comment:
         'Application depends on port interfaces, not on their infrastructure adapters.',
       severity: 'error',
-      from: { path: '^src/modules/([^/]+)/application(/|$)' },
+      from: { path: `^src/modules/${MODULE}/application(/|$)` },
       to: { path: '^src/modules/$1/(infrastructure|api)(/|$)' },
     },
     {
@@ -66,17 +76,17 @@ module.exports = {
       comment:
         'HTTP layer must go through application services, not skip into infrastructure.',
       severity: 'error',
-      from: { path: '^src/modules/([^/]+)/api(/|$)' },
+      from: { path: `^src/modules/${MODULE}/api(/|$)` },
       to: { path: '^src/modules/$1/infrastructure(/|$)' },
     },
     {
       name: 'no-cross-module-domain-reach',
       comment:
-        'One module must not reach into another module domain directly. Use application ports or shared kernel.',
+        'One module must not reach into another module domain directly. Use application ports or shared kernel. A container module file (e.g. master-data.module.ts) may import its own sub-modules.',
       severity: 'error',
-      from: { path: '^src/modules/([^/]+)/' },
+      from: { path: `^src/modules/${MODULE}/` },
       to: {
-        path: '^src/modules/(?!$1)[^/]+/(domain|application|infrastructure)(/|$)',
+        path: `^src/modules/(?!$1(/|$))${MODULE}/(domain|application|infrastructure)(/|$)`,
       },
     },
     {

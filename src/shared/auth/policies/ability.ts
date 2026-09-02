@@ -31,6 +31,9 @@ export type Subject =
   | 'Vendor'
   | 'Item'
   | 'Uom'
+  | 'Company'
+  | 'Branch'
+  | 'Warehouse'
   | 'all';
 
 export type AppSubjects = InferSubjects<Subject>;

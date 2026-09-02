@@ -46,6 +46,26 @@ export const MESSAGES_TH: Readonly<Record<string, string>> = {
   'MASTER_DATA.UOM_NOT_FOUND': 'ไม่พบข้อมูลหน่วยนับที่ระบุ',
   'MASTER_DATA.DUPLICATE_UOM_CODE': 'รหัสหน่วยนับนี้ถูกใช้งานแล้ว',
   'MASTER_DATA.INVALID_UOM_FIELD': 'ข้อมูลหน่วยนับไม่ถูกต้อง',
+
+  'DOMAIN.INVALID_THAI_TAX_ID':
+    'เลขประจำตัวผู้เสียภาษีไม่ถูกต้อง (ต้องเป็นตัวเลข 13 หลักและเลขตรวจสอบถูกต้อง)',
+  'MASTER_DATA.COMPANY_NOT_FOUND': 'ไม่พบข้อมูลบริษัทที่ระบุ',
+  'MASTER_DATA.DUPLICATE_COMPANY_CODE': 'รหัสบริษัทนี้ถูกใช้งานแล้ว',
+  'MASTER_DATA.INVALID_COMPANY_FIELD': 'ข้อมูลบริษัทไม่ถูกต้อง',
+  'MASTER_DATA.BRANCH_NOT_FOUND': 'ไม่พบข้อมูลสาขาที่ระบุ',
+  'MASTER_DATA.DUPLICATE_BRANCH_CODE': 'รหัสสาขานี้ถูกใช้งานแล้ว',
+  'MASTER_DATA.DUPLICATE_BRANCH_NUMBER':
+    'เลขที่สาขานี้ถูกใช้งานแล้วสำหรับบริษัทนี้',
+  'MASTER_DATA.BRANCH_COMPANY_INVALID':
+    'บริษัทที่ระบุไม่มีอยู่หรือถูกระงับการใช้งาน',
+  'MASTER_DATA.INVALID_BRANCH_FIELD': 'ข้อมูลสาขาไม่ถูกต้อง',
+  'MASTER_DATA.WAREHOUSE_NOT_FOUND': 'ไม่พบข้อมูลคลังสินค้าที่ระบุ',
+  'MASTER_DATA.DUPLICATE_WAREHOUSE_CODE': 'รหัสคลังสินค้านี้ถูกใช้งานแล้ว',
+  'MASTER_DATA.WAREHOUSE_BRANCH_INVALID':
+    'สาขาที่ระบุไม่มีอยู่หรือถูกระงับการใช้งาน',
+  'MASTER_DATA.DEFAULT_WAREHOUSE_EXISTS':
+    'สาขานี้มีคลังสินค้าหลักอยู่แล้ว กำหนดคลังหลักได้เพียงคลังเดียวต่อสาขา',
+  'MASTER_DATA.INVALID_WAREHOUSE_FIELD': 'ข้อมูลคลังสินค้าไม่ถูกต้อง',
 };
 
 const FALLBACK_TH = 'เกิดข้อผิดพลาดที่ไม่คาดคิด';

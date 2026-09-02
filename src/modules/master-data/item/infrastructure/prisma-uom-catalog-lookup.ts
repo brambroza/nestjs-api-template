@@ -1,12 +1,14 @@
 import { Injectable } from '@nestjs/common';
 
 import { PrismaService } from '../../../../shared/database';
-import type { UomCatalogLookup } from '../../item/application/ports/uom-catalog.port';
+import type { UomCatalogLookup } from '../application/ports/uom-catalog.port';
 
 /**
- * Adapter that implements the item module's `UomCatalogLookup` port
- * by hitting the UoM table directly. Lives in the UoM module so item
- * has no direct dependency on the UoM aggregate.
+ * Reads the UoM table directly rather than calling into the UoM module —
+ * same compromise as production-order's PrismaBomLookup. The item module
+ * owns the port AND the adapter; the UoM module never learns item exists.
+ * If the UoM table shape changes, this file and the UoM repository are
+ * the two places to update.
  */
 @Injectable()
 export class PrismaUomCatalogLookup implements UomCatalogLookup {

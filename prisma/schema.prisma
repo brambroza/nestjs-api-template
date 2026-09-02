@@ -50,8 +50,93 @@ model Tenant {
   vendors                        Vendor[]
   items                          Item[]
   uomDefinitions                 UomDefinition[]
+  companies                      Company[]
+  branches                       Branch[]
+  warehouses                     Warehouse[]
 
   @@map("tenant")
+}
+
+// ---------------------------------------------------------------------------
+// Organisation structure — Tenant > Company > Branch > Warehouse
+//
+// A tenant may operate several legal entities (group of companies). Each
+// legal entity has a Thai tax id and a registered name that appears on
+// tax invoices. Branches map to the Revenue Department's "สาขาที่ NNNNN"
+// numbering (00000 = head office). Warehouses are physical stock
+// locations under a branch — inventory (Phase C) references warehouseId.
+// ---------------------------------------------------------------------------
+
+model Company {
+  id             String   @id @db.NVarChar(36)
+  tenantId       String   @db.NVarChar(36)
+  code           String   @db.NVarChar(32)
+  name           String   @db.NVarChar(200)
+  /// Registered legal name as printed on tax invoices (may differ from `name`).
+  legalName      String   @db.NVarChar(200)
+  /// 13-digit Thai tax id (เลขประจำตัวผู้เสียภาษี). Optional for non-VAT entities.
+  taxId          String?  @db.NVarChar(20)
+  /// ISO 4217. Default reporting currency for this legal entity.
+  baseCurrency   String   @default("THB") @db.NVarChar(3)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.DateTime2
+  updatedAt      DateTime @updatedAt @db.DateTime2
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branches   Branch[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, name])
+  @@map("md_company")
+}
+
+model Branch {
+  id             String   @id @db.NVarChar(36)
+  tenantId       String   @db.NVarChar(36)
+  companyId      String   @db.NVarChar(36)
+  code           String   @db.NVarChar(32)
+  name           String   @db.NVarChar(200)
+  /// Revenue Department branch number, 5 digits; "00000" = head office.
+  branchNumber   String   @default("00000") @db.NVarChar(5)
+  addressLine1   String?  @db.NVarChar(200)
+  addressLine2   String?  @db.NVarChar(200)
+  subDistrict    String?  @db.NVarChar(100)
+  district       String?  @db.NVarChar(100)
+  province       String?  @db.NVarChar(100)
+  postalCode     String?  @db.NVarChar(10)
+  isHeadOffice   Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.DateTime2
+  updatedAt      DateTime @updatedAt @db.DateTime2
+
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  company     Company     @relation(fields: [companyId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  warehouses  Warehouse[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, companyId, branchNumber])
+  @@index([tenantId, companyId])
+  @@map("md_branch")
+}
+
+model Warehouse {
+  id             String   @id @db.NVarChar(36)
+  tenantId       String   @db.NVarChar(36)
+  branchId       String   @db.NVarChar(36)
+  code           String   @db.NVarChar(32)
+  name           String   @db.NVarChar(200)
+  /// One default warehouse per branch — the fallback receiving location.
+  isDefault      Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.DateTime2
+  updatedAt      DateTime @updatedAt @db.DateTime2
+
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  branch   Branch  @relation(fields: [branchId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, branchId])
+  @@map("md_warehouse")
 }
 
 // ---------------------------------------------------------------------------

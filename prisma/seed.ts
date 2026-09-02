@@ -54,6 +54,12 @@ async function main(): Promise<void> {
         id: 'role-master-data-editor',
         name: 'master-data-editor',
         rules: [
+          { action: 'read', subject: 'Company' },
+          { action: 'create', subject: 'Company' },
+          { action: 'read', subject: 'Branch' },
+          { action: 'create', subject: 'Branch' },
+          { action: 'read', subject: 'Warehouse' },
+          { action: 'create', subject: 'Warehouse' },
           { action: 'read', subject: 'Customer' },
           { action: 'create', subject: 'Customer' },
           { action: 'read', subject: 'Vendor' },
@@ -72,6 +78,9 @@ async function main(): Promise<void> {
           { action: 'read', subject: 'ProductionOrder' },
           { action: 'submit', subject: 'ProductionOrderSubmit' },
           { action: 'cancel', subject: 'ProductionOrderCancel' },
+          { action: 'read', subject: 'Company' },
+          { action: 'read', subject: 'Branch' },
+          { action: 'read', subject: 'Warehouse' },
           { action: 'read', subject: 'Customer' },
           { action: 'read', subject: 'Vendor' },
           { action: 'read', subject: 'Item' },
@@ -157,6 +166,52 @@ async function main(): Promise<void> {
         create: { userId: 'user-operator', roleId },
       });
     }
+
+    // Org structure: one company > head-office branch > default warehouse.
+    // Tax ids below pass the mod-11 check digit (ThaiTaxId VO).
+    await prisma.company.upsert({
+      where: { tenantId_code: { tenantId, code: 'DEMO' } },
+      update: {},
+      create: {
+        id: 'co-demo',
+        tenantId,
+        code: 'DEMO',
+        name: 'Demo Factory',
+        legalName: 'Demo Factory Co., Ltd.',
+        taxId: '0105551234567',
+        baseCurrency: 'THB',
+      },
+    });
+    await prisma.branch.upsert({
+      where: { tenantId_code: { tenantId, code: 'HQ' } },
+      update: {},
+      create: {
+        id: 'br-hq',
+        tenantId,
+        companyId: 'co-demo',
+        code: 'HQ',
+        name: 'สำนักงานใหญ่',
+        branchNumber: '00000',
+        addressLine1: '123 ถนนสุขุมวิท',
+        subDistrict: 'คลองเตย',
+        district: 'คลองเตย',
+        province: 'กรุงเทพมหานคร',
+        postalCode: '10110',
+        isHeadOffice: true,
+      },
+    });
+    await prisma.warehouse.upsert({
+      where: { tenantId_code: { tenantId, code: 'WH-MAIN' } },
+      update: {},
+      create: {
+        id: 'wh-main',
+        tenantId,
+        branchId: 'br-hq',
+        code: 'WH-MAIN',
+        name: 'คลังสินค้าหลัก',
+        isDefault: true,
+      },
+    });
 
     // Master-data seed rows — a base UoM (PCS) + one derived (BOX = 12 PCS),
     // one customer, one vendor, one item. Idempotent by (tenantId, code|sku).
@@ -299,6 +354,7 @@ async function main(): Promise<void> {
   Users:
     admin@demo.local / admin123!    (roles: admin)
     operator@demo.local / operator123!  (roles: creator, planner, shopfloor)
+  Org: Company DEMO > Branch HQ (00000) > Warehouse WH-MAIN (default)
   Master data: UoM (PCS, KG, BOX), Item FIN-A, Customer CUST-001, Vendor VEND-001
   Order: ${orderId} (DRAFT) + BOM RAW-A + 500 kg stock`);
   } finally {
