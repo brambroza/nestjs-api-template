@@ -1,56 +1,39 @@
 import { AbilityBuilder } from '@casl/ability';
 import { Injectable } from '@nestjs/common';
 
-import type { AuthenticatedUser } from '../authenticated-user.decorator';
-
 import { Action, AppAbility, createAppAbility } from './ability';
 
+export interface PermissionRuleLike {
+  readonly action: string;
+  readonly subject: string;
+  readonly inverted?: boolean;
+}
+
 /**
- * Builds a CASL ability for the current user. Roles drive the rules;
- * the state-machine authority matrix in docs/state-machine.md is
- * the spec this factory implements. Any change here must also update
- * that document.
+ * Builds a CASL ability from a raw list of permission rules — loaded
+ * from Role.permissionsJson via UserPermissionsProvider. This factory
+ * no longer hardcodes any role → previously the mapping lived here
+ * and required a redeploy; now admins edit the JSON in the DB.
+ *
+ * A rule with subject "all" and action "manage" is the "admin
+ * everything" grant. A rule with `inverted: true` is a deny (CASL
+ * `cannot`).
  */
 @Injectable()
 export class AbilityFactory {
-  createForUser(user: AuthenticatedUser): AppAbility {
+  fromRules(rules: readonly PermissionRuleLike[]): AppAbility {
     const { can, cannot, build } = new AbilityBuilder<AppAbility>(
       createAppAbility,
     );
-
-    if (user.roles.includes('admin')) {
-      can(Action.Manage, 'all');
-      return build();
+    for (const rule of rules) {
+      const action = rule.action as Action;
+      const subject = rule.subject as Parameters<typeof can>[1];
+      if (rule.inverted) {
+        cannot(action, subject);
+      } else {
+        can(action, subject);
+      }
     }
-
-    if (user.roles.includes('creator')) {
-      can(Action.Create, 'ProductionOrder');
-      can(Action.Submit, 'ProductionOrderSubmit');
-      can(Action.Cancel, 'ProductionOrderCancel');
-    }
-
-    if (user.roles.includes('approver')) {
-      can(Action.Approve, 'ProductionOrderApprove');
-      // Segregation of duties is enforced in the domain, not here — the
-      // CASL rule opens the door; the aggregate slams it shut for the
-      // one specific "own order" case.
-    }
-
-    if (user.roles.includes('planner')) {
-      can(Action.Release, 'ProductionOrderRelease');
-      can(Action.Cancel, 'ProductionOrderCancel');
-    }
-
-    if (user.roles.includes('shopfloor')) {
-      can(Action.ReportProgress, 'ProductionOrderReport');
-    }
-
-    // Read is available to any authenticated user in the same tenant —
-    // tenant scoping happens in the repository (R10), not here.
-    can(Action.Read, 'ProductionOrder');
-
-    cannot(Action.Manage, 'all');
-
     return build();
   }
 }

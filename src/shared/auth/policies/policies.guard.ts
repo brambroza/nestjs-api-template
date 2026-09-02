@@ -2,31 +2,44 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Inject,
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+
+import {
+  USER_PERMISSIONS,
+  type UserPermissionsProvider,
+} from '../../../modules/master-data/user/application/ports/permissions.port';
+import type { AuthenticatedUser } from '../authenticated-user.decorator';
 
 import { AbilityFactory } from './ability.factory';
 import {
   CHECK_POLICIES_KEY,
   type PolicyHandler,
 } from './check-policies.decorator';
-import type { AuthenticatedUser } from '../authenticated-user.decorator';
 
 /**
- * Reads @CheckPolicies handlers from route metadata, builds an ability
- * for the current user, and asks each handler whether the operation is
- * allowed. Roles are the input; the authority matrix in
- * docs/state-machine.md is the spec.
+ * Loads the user's rules from DB via UserPermissionsProvider (a role
+ * change takes effect on the next request — no token refresh needed),
+ * builds an ability, and asks each @CheckPolicies handler whether the
+ * operation is allowed.
+ *
+ * A user with no rules (fresh install, missing role assignment) gets
+ * denied — same as if all handlers returned false. That's on purpose:
+ * silent "no rules -> allowed" is the failure mode that turns a
+ * permission bug into a security bug.
  */
 @Injectable()
 export class PoliciesGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly abilityFactory: AbilityFactory,
+    @Inject(USER_PERMISSIONS)
+    private readonly permissions: UserPermissionsProvider,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const handlers =
       this.reflector.get<PolicyHandler[]>(
         CHECK_POLICIES_KEY,
@@ -40,7 +53,8 @@ export class PoliciesGuard implements CanActivate {
     if (!req.user) {
       throw new ForbiddenException('No authenticated user');
     }
-    const ability = this.abilityFactory.createForUser(req.user);
+    const rules = await this.permissions.forUser(req.user.id);
+    const ability = this.abilityFactory.fromRules(rules);
     const allowed = handlers.every((h) => h(ability));
     if (!allowed) {
       throw new ForbiddenException(
