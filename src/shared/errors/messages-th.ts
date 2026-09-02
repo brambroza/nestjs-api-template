@@ -236,6 +236,26 @@ export const MESSAGES_TH: Readonly<Record<string, string>> = {
   'INVENTORY.INVALID_COUNT': 'ข้อมูลใบตรวจนับสต็อกไม่ถูกต้อง',
   'INVENTORY.COUNT_APPROVAL_PENDING': 'รายการปรับปรุงสต็อกยังรอการอนุมัติอยู่',
   'PURCHASE.INVALID_REORDER_RULE': 'ข้อมูลจุดสั่งซื้อซ้ำไม่ถูกต้อง',
+
+  'FINANCE.POSTING_PERIOD_CLOSED':
+    'งวดบัญชีของวันที่นี้ถูกล็อกหรือปิดแล้ว ไม่สามารถบันทึกรายการได้',
+  'AR.REF_INVALID':
+    'ข้อมูลอ้างอิง (บริษัท/สาขา/ลูกค้า/สินค้า/ใบสั่งขาย) ไม่ถูกต้อง',
+  'AR.INVOICE_NOT_FOUND': 'ไม่พบใบแจ้งหนี้/ใบกำกับภาษีที่ระบุ',
+  'AR.ILLEGAL_INVOICE_TRANSITION':
+    'ไม่สามารถเปลี่ยนสถานะใบแจ้งหนี้จากสถานะปัจจุบันได้',
+  'AR.INVOICE_NOT_EDITABLE': 'แก้ไขได้เฉพาะใบแจ้งหนี้สถานะร่างเท่านั้น',
+  'AR.INVALID_INVOICE': 'ข้อมูลใบแจ้งหนี้ไม่ถูกต้อง',
+  'AR.SETTLEMENT_EXCEEDS_BALANCE': 'ยอดชำระ/ลดหนี้เกินยอดคงค้างของใบแจ้งหนี้',
+  'AR.NOTHING_TO_INVOICE':
+    'ใบสั่งขายนี้ไม่มีรายการที่ส่งมอบแล้วและยังไม่ได้ออกใบแจ้งหนี้',
+  'AR.RECEIPT_NOT_FOUND': 'ไม่พบใบเสร็จรับเงินที่ระบุ',
+  'AR.ILLEGAL_RECEIPT_TRANSITION':
+    'ไม่สามารถเปลี่ยนสถานะใบเสร็จรับเงินจากสถานะปัจจุบันได้',
+  'AR.INVALID_RECEIPT': 'ข้อมูลใบเสร็จรับเงินไม่ถูกต้อง',
+  'AR.VERSION_CONFLICT':
+    'เอกสารถูกแก้ไขโดยผู้ใช้อื่นแล้ว กรุณาโหลดใหม่แล้วลองอีกครั้ง',
+  'AR.INVALID_PROMPTPAY': 'ข้อมูล PromptPay ไม่ถูกต้อง',
 };
 
 const FALLBACK_TH = 'เกิดข้อผิดพลาดที่ไม่คาดคิด';

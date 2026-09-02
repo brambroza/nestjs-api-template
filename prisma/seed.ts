@@ -94,6 +94,8 @@ async function main(): Promise<void> {
         id: 'role-finance-admin',
         name: 'finance-admin',
         rules: [
+          { action: 'manage', subject: 'SalesInvoice' },
+          { action: 'manage', subject: 'Receipt' },
           { action: 'read', subject: 'Company' },
           { action: 'read', subject: 'Item' },
           { action: 'manage', subject: 'Currency' },
@@ -209,6 +211,20 @@ async function main(): Promise<void> {
         ],
       },
       {
+        id: 'role-ar-clerk',
+        name: 'ar-clerk',
+        rules: [
+          { action: 'manage', subject: 'SalesInvoice' },
+          { action: 'manage', subject: 'Receipt' },
+          { action: 'read', subject: 'SalesOrder' },
+          { action: 'read', subject: 'Customer' },
+          { action: 'read', subject: 'Company' },
+          { action: 'read', subject: 'Branch' },
+          { action: 'read', subject: 'Item' },
+          { action: 'read', subject: 'TaxCode' },
+        ],
+      },
+      {
         id: 'role-creator',
         name: 'creator',
         rules: [
@@ -317,6 +333,7 @@ async function main(): Promise<void> {
         code: 'DEMO',
         name: 'Demo Factory',
         legalName: 'Demo Factory Co., Ltd.',
+        promptPayId: '0105559999999',
         taxId: '0105551234567',
         baseCurrency: 'THB',
       },
@@ -1002,7 +1019,7 @@ async function main(): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(`Seeded tenant "${tenantId}".
   Roles: admin, master-data-editor, pdpa-officer, finance-admin, sales, sales-manager,
-    purchaser, purchasing-manager, warehouse, creator, approver, planner, shopfloor
+    purchaser, purchasing-manager, warehouse, ar-clerk, creator, approver, planner, shopfloor
   Users:
     admin@demo.local / admin123!    (roles: admin)
     operator@demo.local / operator123!  (roles: creator, planner, shopfloor)
@@ -1021,6 +1038,7 @@ async function main(): Promise<void> {
     (10 x FIN-A @ 1,400.00 + VAT 7% = 14,980.00, valid until 2026-09-30)
     Sales orders: POST /sales-orders (direct or quotationId), submit -> credit check + SALES_ORDER policy
   Purchase: buyer@demo.local / buyer123! (purchaser) — PR (creator/purchaser) -> PO -> GRN with lot capture
+  AR: POST /sales-invoices/from-sales-order -> /issue (IV00000-yyyymm-nnnnn per branch, gapless), receipts + PromptPay
   Partner: CUST-001 has 1 primary contact, 1 default BILLING address, 1 MARKETING consent
   Inventory (WH-MAIN, FIFO): 500 KG RAW-A lot RAW-2609 @ 50.00 (exp 2027-09-01), 20 PCS FIN-A @ 900.00
     serials FIN-A-0001..0020; legacy stock_level row kept for the e2e suite

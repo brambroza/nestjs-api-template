@@ -99,6 +99,11 @@ model Tenant {
   stockCounts                    StockCount[]
   stockCountLines                StockCountLine[]
   reorderRules                   ReorderRule[]
+  taxInvoiceSequences            TaxInvoiceSequence[]
+  salesInvoices                  SalesInvoice[]
+  salesInvoiceLines              SalesInvoiceLine[]
+  receipts                       Receipt[]
+  receiptAllocations             ReceiptAllocation[]
 
   @@map("tenant")
 }
@@ -614,6 +619,8 @@ model Company {
   taxId          String?  @db.NVarChar(20)
   /// ISO 4217. Default reporting currency for this legal entity.
   baseCurrency   String   @default("THB") @db.NVarChar(3)
+  /// PromptPay proxy printed as a QR on invoices: 13-digit tax id, or mobile / e-wallet id.
+  promptPayId    String?  @db.NVarChar(20)
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now()) @db.DateTime2
   updatedAt      DateTime @updatedAt @db.DateTime2
@@ -1649,4 +1656,153 @@ model ReorderRule {
   @@unique([tenantId, warehouseId, itemId])
   @@index([tenantId, isActive])
   @@map("pur_reorder_rule")
+}
+
+// ---------------------------------------------------------------------------
+// Finance — Accounts Receivable (EPIC-C.2)
+// ---------------------------------------------------------------------------
+
+/// Gapless tax-invoice counters (T-331): key = "<IV|CN|DN>:<branchId>:<yyyymm>".
+/// Claimed inside the issuing transaction, so a rollback returns the number.
+model TaxInvoiceSequence {
+  tenantId  String   @db.NVarChar(36)
+  key       String   @db.NVarChar(64)
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([tenantId, key])
+  @@map("fin_tax_invoice_sequence")
+}
+
+/// type: INVOICE | CREDIT_NOTE | DEBIT_NOTE. status: DRAFT | ISSUED |
+/// PARTIALLY_PAID | PAID | APPLIED (credit notes) | VOID. `number` is the
+/// tax-invoice number, assigned at issue. Customer identity is frozen at
+/// issue (Revenue Department requirement).
+model SalesInvoice {
+  id                   String    @id @db.NVarChar(36)
+  tenantId             String    @db.NVarChar(36)
+  companyId            String    @db.NVarChar(36)
+  branchId             String    @db.NVarChar(36)
+  number               String?   @db.NVarChar(32)
+  type                 String    @db.NVarChar(12)
+  originalInvoiceId    String?   @db.NVarChar(36)
+  reason               String?   @db.NVarChar(20)
+  reasonText           String?   @db.NVarChar(500)
+  customerId           String    @db.NVarChar(36)
+  customerName         String    @db.NVarChar(200)
+  customerTaxId        String?   @db.NVarChar(20)
+  customerBranchNumber String?   @db.NVarChar(5)
+  billingAddress       String?   @db.NVarChar(500)
+  salesOrderId         String?   @db.NVarChar(36)
+  currency             String    @db.NVarChar(3)
+  invoiceDate          DateTime  @db.Date
+  dueDate              DateTime  @db.Date
+  paymentTermsDays     Int
+  status               String    @db.NVarChar(16)
+  subtotalMinor        BigInt
+  discountMinor        BigInt
+  taxMinor             BigInt
+  totalMinor           BigInt
+  settledMinor         BigInt    @default(0)
+  balanceMinor         BigInt
+  notes                String?   @db.NVarChar(Max)
+  version              Int       @default(0)
+  createdBy            String    @db.NVarChar(64)
+  issuedAt             DateTime? @db.DateTime2
+  voidedAt             DateTime? @db.DateTime2
+  voidReason           String?   @db.NVarChar(500)
+  createdAt            DateTime  @db.DateTime2
+  updatedAt            DateTime  @updatedAt @db.DateTime2
+
+  tenant Tenant             @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lines  SalesInvoiceLine[]
+
+  @@index([tenantId, customerId, status])
+  @@index([tenantId, status, dueDate])
+  @@index([tenantId, salesOrderId])
+  @@index([tenantId, invoiceDate])
+  @@map("fin_sales_invoice")
+}
+
+model SalesInvoiceLine {
+  id               String  @id @db.NVarChar(36)
+  tenantId         String  @db.NVarChar(36)
+  invoiceId        String  @db.NVarChar(36)
+  lineNo           Int
+  itemId           String  @db.NVarChar(36)
+  itemSku          String  @db.NVarChar(64)
+  description      String  @db.NVarChar(200)
+  uomCode          String  @db.NVarChar(16)
+  quantity         BigInt
+  unitPriceMinor   BigInt
+  priceSource      String  @db.NVarChar(12)
+  priceListId      String? @db.NVarChar(36)
+  discountBp       Int     @default(0)
+  discountMinor    BigInt
+  netMinor         BigInt
+  taxCodeId        String  @db.NVarChar(36)
+  taxCode          String  @db.NVarChar(16)
+  taxRateBp        Int
+  taxMinor         BigInt
+  totalMinor       BigInt
+  salesOrderLineId String? @db.NVarChar(36)
+
+  tenant  Tenant       @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  invoice SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([invoiceId, lineNo])
+  @@index([tenantId, salesOrderLineId])
+  @@map("fin_sales_invoice_line")
+}
+
+/// method: CASH | TRANSFER | CHEQUE | PROMPTPAY. status: DRAFT | POSTED | VOID.
+/// whtMinor = tax the customer withheld (settles the invoice, not cash).
+model Receipt {
+  id           String    @id @db.NVarChar(36)
+  tenantId     String    @db.NVarChar(36)
+  companyId    String    @db.NVarChar(36)
+  number       String    @db.NVarChar(24)
+  customerId   String    @db.NVarChar(36)
+  currency     String    @db.NVarChar(3)
+  receiptDate  DateTime  @db.Date
+  method       String    @db.NVarChar(12)
+  amountMinor  BigInt
+  whtMinor     BigInt    @default(0)
+  reference    String?   @db.NVarChar(100)
+  chequeNumber String?   @db.NVarChar(32)
+  chequeBank   String?   @db.NVarChar(100)
+  chequeDate   DateTime? @db.Date
+  notes        String?   @db.NVarChar(Max)
+  status       String    @db.NVarChar(12)
+  version      Int       @default(0)
+  createdBy    String    @db.NVarChar(64)
+  postedAt     DateTime? @db.DateTime2
+  voidedAt     DateTime? @db.DateTime2
+  createdAt    DateTime  @db.DateTime2
+  updatedAt    DateTime  @updatedAt @db.DateTime2
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  allocations ReceiptAllocation[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, customerId, status])
+  @@index([tenantId, receiptDate])
+  @@map("fin_receipt")
+}
+
+model ReceiptAllocation {
+  id          String @id @db.NVarChar(36)
+  tenantId    String @db.NVarChar(36)
+  receiptId   String @db.NVarChar(36)
+  invoiceId   String @db.NVarChar(36)
+  amountMinor BigInt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  receipt Receipt @relation(fields: [receiptId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([receiptId, invoiceId])
+  @@index([tenantId, invoiceId])
+  @@map("fin_receipt_allocation")
 }

@@ -206,3 +206,30 @@ back to counting.
 one CLS scope per tenant, requester `system`) raises one purchase requisition
 per (company, preferred vendor) for every active rule whose available quantity
 is at or below the point, then holds that rule for a 7-day cooldown.
+
+---
+
+# Accounts Receivable (EPIC-C.2)
+
+Code: `src/modules/finance/receivable/domain/{sales-invoice,receipt}.ts`.
+
+## Sales invoice / tax invoice
+
+DRAFT → ISSUED (gapless `IV<branch>-<yyyymm>-<nnnnn>` claimed inside the issuing
+transaction, period gate on the invoice date) → PARTIALLY_PAID → PAID.
+DRAFT | ISSUED (unsettled) → VOID. Credit notes (`CN…`) are issued and applied
+to the original in one step (status APPLIED, never beyond the open balance);
+debit notes (`DN…`) are new receivables referencing the original. Customer
+identity (name, tax id, RD branch number, billing address) is frozen on the
+document.
+
+## Receipt
+
+DRAFT → POSTED (allocations settle invoices; cash + withheld tax) → VOID
+(reverses the settlements). Cheque receipts need number/bank/date; transfers
+need the bank reference. `autoMatch` proposes allocations: quoted invoice
+number → exact-amount match → oldest due first.
+
+Reports: `/ar/aging` (0-30 / 31-60 / 61-90 / 90+ by days past due) and
+`/ar/customers/:id/statement` (running balance). `/sales-invoices/:id/promptpay`
+returns the EMVCo PromptPay payload for the open balance.
