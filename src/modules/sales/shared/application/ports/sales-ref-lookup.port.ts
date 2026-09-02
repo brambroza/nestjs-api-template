@@ -11,6 +11,7 @@ export interface CustomerRef {
   readonly code: string;
   readonly name: string;
   readonly paymentTermsDays: number;
+  readonly creditLimitMinor: bigint;
   readonly isActive: boolean;
 }
 
@@ -31,4 +32,5 @@ export interface SalesRefLookup {
   ): Promise<CustomerRef | null>;
   findItem(tenantId: string, itemId: string): Promise<ItemRef | null>;
   currencyExists(tenantId: string, code: string): Promise<boolean>;
+  warehouseExists(tenantId: string, warehouseId: string): Promise<boolean>;
 }

@@ -1,4 +1,4 @@
-export const QUOTATION_PRICING = Symbol('QUOTATION_PRICING');
+export const DOCUMENT_PRICING = Symbol('DOCUMENT_PRICING');
 
 export interface PriceLookupInput {
   readonly itemId: string;
@@ -25,7 +25,7 @@ export interface VatLookupResult {
  * cases. Absence of a price surfaces as master-data's NoPriceFoundError
  * (404) — a document never silently prices at zero.
  */
-export interface QuotationPricing {
+export interface DocumentPricing {
   resolvePrice(input: PriceLookupInput): Promise<PriceLookupResult>;
   resolveVat(itemId: string): Promise<VatLookupResult>;
 }

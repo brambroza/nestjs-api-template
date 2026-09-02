@@ -126,6 +126,8 @@ async function main(): Promise<void> {
         name: 'sales-manager',
         rules: [
           { action: 'manage', subject: 'Quotation' },
+          { action: 'manage', subject: 'SalesOrder' },
+          { action: 'manage', subject: 'DeliveryNote' },
           { action: 'read', subject: 'Customer' },
           { action: 'read', subject: 'Item' },
           { action: 'read', subject: 'PriceList' },
@@ -154,6 +156,8 @@ async function main(): Promise<void> {
         name: 'sales',
         rules: [
           { action: 'manage', subject: 'Quotation' },
+          { action: 'manage', subject: 'SalesOrder' },
+          { action: 'manage', subject: 'DeliveryNote' },
           { action: 'read', subject: 'Company' },
           { action: 'read', subject: 'Customer' },
           { action: 'read', subject: 'Item' },
@@ -886,6 +890,7 @@ async function main(): Promise<void> {
     PURCHASE_ORDER (mgr; finance >= 200k; admin >= 2M)
   Sales: sales@demo.local / sales123! (sales) — quotation QT-202609-0001 rev 1 DRAFT
     (10 x FIN-A @ 1,400.00 + VAT 7% = 14,980.00, valid until 2026-09-30)
+    Sales orders: POST /sales-orders (direct or quotationId), submit -> credit check + SALES_ORDER policy
   Partner: CUST-001 has 1 primary contact, 1 default BILLING address, 1 MARKETING consent
   Order: ${orderId} (DRAFT, productSku FIN-A -> master BOM) + 500 KG RAW-A stock`);
   } finally {

@@ -1,11 +1,7 @@
-import {
-  CurrencyMismatchError,
-  PriceSource,
-  SalesRefInvalidError,
-  type QuotationLineInput,
-} from '../domain';
+import { PriceSource, type DocumentLineInput } from '../../../../shared/domain';
+import { CurrencyMismatchError, SalesRefInvalidError } from '../domain';
 
-import type { QuotationPricing } from './ports/pricing.port';
+import type { DocumentPricing } from './ports/pricing.port';
 import type { SalesRefLookup } from './ports/sales-ref-lookup.port';
 
 /** A line as the API hands it in: item + quantity, optional manual price. */
@@ -37,11 +33,11 @@ export async function priceLines(
   ctx: PricingContext,
   deps: {
     readonly refs: SalesRefLookup;
-    readonly pricing: QuotationPricing;
+    readonly pricing: DocumentPricing;
     readonly newId: () => string;
   },
-): Promise<QuotationLineInput[]> {
-  const out: QuotationLineInput[] = [];
+): Promise<DocumentLineInput[]> {
+  const out: DocumentLineInput[] = [];
   for (const req of requests) {
     const item = await deps.refs.findItem(ctx.tenantId, req.itemId);
     if (!item?.isActive) {
@@ -52,7 +48,7 @@ export async function priceLines(
     const uomCode =
       (req.uomCode ?? '').trim().toUpperCase() || item.defaultUomCode;
     let unitPriceMinor: bigint;
-    let priceSource: (typeof PriceSource)[keyof typeof PriceSource];
+    let priceSource: PriceSource;
     let priceListId: string | null = null;
     if (req.unitPriceMinor !== null && req.unitPriceMinor !== undefined) {
       unitPriceMinor = req.unitPriceMinor;

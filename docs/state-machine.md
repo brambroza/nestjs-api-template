@@ -84,3 +84,38 @@ Notes
   `expectedVersion`; a mismatch is `SALES.VERSION_CONFLICT` (409).
 - **ACCEPTED → sales order.** The sales-order module links `salesOrderId`
   on conversion (next batch); a quotation converts at most once.
+
+---
+
+# Sales Order — State Machine (EPIC-B.2)
+
+Code: `src/modules/sales/sales-order/domain/sales-order.ts` (`TRANSITIONS`).
+
+| from ↓ / to →           | DRAFT | PENDING_APPROVAL | CONFIRMED | PARTIALLY_DELIVERED | DELIVERED | REJECTED | CANCELLED |
+|-------------------------|:-----:|:----------------:|:---------:|:-------------------:|:---------:|:--------:|:---------:|
+| **DRAFT**               |   —   | submit: a policy step applies (or credit EXCEEDED) | submit: auto-approved | ✗ | ✗ | ✗ | sales |
+| **PENDING_APPROVAL**    | approval CANCELLED / withdrawn | — | approval APPROVED (`/confirm`) | ✗ | ✗ | approval REJECTED (`/confirm`) | sales |
+| **CONFIRMED**           |   ✗   |        ✗         |     —     | delivery note SHIPPED (partial) | delivery note SHIPPED (all lines) | ✗ | sales, only while no line has been delivered |
+| **PARTIALLY_DELIVERED** |   ✗   |        ✗         |     ✗     |          —          | delivery note SHIPPED (rest) | ✗ | ✗ |
+| **DELIVERED**           |   ✗   |        ✗         |     ✗     |          ✗          |     —     |    ✗     |     ✗     |
+| **REJECTED**            | `/reopen` |     ✗        |     ✗     |          ✗          |     ✗     |    —     |     ✗     |
+| **CANCELLED**           |   ✗   |        ✗         |     ✗     |          ✗          |     ✗     |    ✗     |     —     |
+
+Notes
+
+- **Credit check (submit).** exposure = Σ totalMinor of the customer's orders in
+  PENDING_APPROVAL / CONFIRMED / PARTIALLY_DELIVERED / DELIVERED (same currency)
+  + this order. `creditStatus` = NOT_CHECKED (non-THB), NO_LIMIT (limit 0),
+  OK, EXCEEDED. An EXCEEDED order that the approval matrix would auto-approve is
+  refused (`SALES.CREDIT_LIMIT_EXCEEDED`); with a pending step it waits for a
+  human who sees the flag.
+- **Approval (pull model).** `submit` opens the request through
+  `APPROVAL_GATEWAY` inside the same transaction; `/confirm` asks the gateway
+  for the current state and applies it. No cross-module event bus is needed.
+- **Delivery notes.** DRAFT → SHIPPED posts `deliveredQty` on the order lines
+  in the same transaction (over-delivery = `SALES.OVER_DELIVERY`); DRAFT →
+  CANCELLED discards. Shipped notes are immutable. Stock movement and
+  reservation (T-213) arrive with Phase C inventory.
+- **Quotation conversion.** `POST /sales-orders { quotationId }` copies the
+  ACCEPTED quotation at its quoted prices and back-links `salesOrderId`; a
+  quotation converts once.

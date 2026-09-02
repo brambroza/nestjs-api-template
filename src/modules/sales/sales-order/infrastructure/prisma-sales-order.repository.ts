@@ -7,18 +7,21 @@ import {
   toIsoDate,
 } from '../../../../shared/domain';
 import {
-  Quotation,
-  QuotationStatus,
-  QuotationVersionConflictError,
-  isQuotationStatus,
-  type QuotationLineSnapshot,
-  type QuotationSnapshot,
+  CreditStatus,
+  OPEN_EXPOSURE_STATUSES,
+  SalesOrder,
+  SalesOrderStatus,
+  SalesOrderVersionConflictError,
+  isCreditStatus,
+  isSalesOrderStatus,
+  type SalesOrderLineSnapshot,
+  type SalesOrderSnapshot,
 } from '../domain';
 import type {
-  ListQuotationsFilter,
-  ListQuotationsPage,
-  QuotationRepository,
-} from '../application/ports/quotation.repository';
+  ListSalesOrdersFilter,
+  ListSalesOrdersPage,
+  SalesOrderRepository,
+} from '../application/ports/sales-order.repository';
 
 const withLines = { lines: { orderBy: { lineNo: 'asc' as const } } };
 
@@ -30,6 +33,7 @@ interface LineRow {
   description: string;
   uomCode: string;
   quantity: bigint;
+  deliveredQty: bigint;
   unitPriceMinor: bigint;
   priceSource: string;
   priceListId: string | null;
@@ -48,11 +52,11 @@ interface HeaderRow {
   tenantId: string;
   companyId: string;
   number: string;
-  revision: number;
+  quotationId: string | null;
   customerId: string;
   currency: string;
-  quoteDate: Date;
-  validUntil: Date;
+  orderDate: Date;
+  requestedDeliveryDate: Date | null;
   status: string;
   paymentTermsDays: number;
   notes: string | null;
@@ -60,18 +64,21 @@ interface HeaderRow {
   discountMinor: bigint;
   taxMinor: bigint;
   totalMinor: bigint;
+  creditStatus: string;
+  creditExposureMinor: bigint;
+  approvalRequestId: string | null;
   version: number;
   createdBy: string;
-  sentAt: Date | null;
+  submittedAt: Date | null;
+  confirmedAt: Date | null;
   resolvedAt: Date | null;
-  rejectReason: string | null;
-  salesOrderId: string | null;
+  cancelReason: string | null;
   createdAt: Date;
   updatedAt: Date;
   lines: LineRow[];
 }
 
-function toLine(r: LineRow): QuotationLineSnapshot {
+function toLine(r: LineRow): SalesOrderLineSnapshot {
   return {
     id: r.id,
     lineNo: r.lineNo,
@@ -80,6 +87,7 @@ function toLine(r: LineRow): QuotationLineSnapshot {
     description: r.description,
     uomCode: r.uomCode,
     quantity: r.quantity,
+    deliveredQty: r.deliveredQty,
     unitPriceMinor: r.unitPriceMinor,
     priceSource: isPriceSource(r.priceSource) ? r.priceSource : 'MANUAL',
     priceListId: r.priceListId,
@@ -94,45 +102,56 @@ function toLine(r: LineRow): QuotationLineSnapshot {
   };
 }
 
-function toSnapshot(r: HeaderRow): QuotationSnapshot {
+function toSnapshot(r: HeaderRow): SalesOrderSnapshot {
   return {
     id: r.id,
     tenantId: r.tenantId,
     companyId: r.companyId,
     number: r.number,
-    revision: r.revision,
+    quotationId: r.quotationId,
     customerId: r.customerId,
     currency: r.currency,
-    quoteDate: toIsoDate(r.quoteDate),
-    validUntil: toIsoDate(r.validUntil),
-    status: isQuotationStatus(r.status) ? r.status : QuotationStatus.Cancelled,
+    orderDate: toIsoDate(r.orderDate),
+    requestedDeliveryDate: r.requestedDeliveryDate
+      ? toIsoDate(r.requestedDeliveryDate)
+      : null,
+    status: isSalesOrderStatus(r.status)
+      ? r.status
+      : SalesOrderStatus.Cancelled,
     paymentTermsDays: r.paymentTermsDays,
     notes: r.notes,
     subtotalMinor: r.subtotalMinor,
     discountMinor: r.discountMinor,
     taxMinor: r.taxMinor,
     totalMinor: r.totalMinor,
+    creditStatus: isCreditStatus(r.creditStatus)
+      ? r.creditStatus
+      : CreditStatus.NotChecked,
+    creditExposureMinor: r.creditExposureMinor,
+    approvalRequestId: r.approvalRequestId,
     version: r.version,
     createdBy: r.createdBy,
-    sentAt: r.sentAt,
+    submittedAt: r.submittedAt,
+    confirmedAt: r.confirmedAt,
     resolvedAt: r.resolvedAt,
-    rejectReason: r.rejectReason,
-    salesOrderId: r.salesOrderId,
+    cancelReason: r.cancelReason,
     lines: r.lines.map(toLine),
     createdAt: r.createdAt,
     updatedAt: r.updatedAt,
   };
 }
 
-function headerData(s: QuotationSnapshot) {
+function headerData(s: SalesOrderSnapshot) {
   return {
     companyId: s.companyId,
     number: s.number,
-    revision: s.revision,
+    quotationId: s.quotationId,
     customerId: s.customerId,
     currency: s.currency,
-    quoteDate: fromIsoDate(s.quoteDate),
-    validUntil: fromIsoDate(s.validUntil),
+    orderDate: fromIsoDate(s.orderDate),
+    requestedDeliveryDate: s.requestedDeliveryDate
+      ? fromIsoDate(s.requestedDeliveryDate)
+      : null,
     status: s.status,
     paymentTermsDays: s.paymentTermsDays,
     notes: s.notes,
@@ -140,29 +159,33 @@ function headerData(s: QuotationSnapshot) {
     discountMinor: s.discountMinor,
     taxMinor: s.taxMinor,
     totalMinor: s.totalMinor,
+    creditStatus: s.creditStatus,
+    creditExposureMinor: s.creditExposureMinor,
+    approvalRequestId: s.approvalRequestId,
     createdBy: s.createdBy,
-    sentAt: s.sentAt,
+    submittedAt: s.submittedAt,
+    confirmedAt: s.confirmedAt,
     resolvedAt: s.resolvedAt,
-    rejectReason: s.rejectReason,
-    salesOrderId: s.salesOrderId,
+    cancelReason: s.cancelReason,
   };
 }
 
 function lineData(
   tenantId: string,
-  quotationId: string,
-  l: QuotationLineSnapshot,
+  salesOrderId: string,
+  l: SalesOrderLineSnapshot,
 ) {
   return {
     id: l.id,
     tenantId,
-    quotationId,
+    salesOrderId,
     lineNo: l.lineNo,
     itemId: l.itemId,
     itemSku: l.itemSku,
     description: l.description,
     uomCode: l.uomCode,
     quantity: l.quantity,
+    deliveredQty: l.deliveredQty,
     unitPriceMinor: l.unitPriceMinor,
     priceSource: l.priceSource,
     priceListId: l.priceListId,
@@ -178,33 +201,21 @@ function lineData(
 }
 
 @Injectable()
-export class PrismaQuotationRepository implements QuotationRepository {
+export class PrismaSalesOrderRepository implements SalesOrderRepository {
   constructor(private readonly txm: PrismaTransactionManager) {}
 
-  async findById(tenantId: string, id: string): Promise<Quotation | null> {
-    const row = await this.txm.getClient().quotation.findFirst({
+  async findById(tenantId: string, id: string): Promise<SalesOrder | null> {
+    const row = await this.txm.getClient().salesOrder.findFirst({
       where: { tenantId, id },
       include: withLines,
     });
-    return row ? Quotation.fromSnapshot(toSnapshot(row)) : null;
-  }
-
-  async findRevisions(
-    tenantId: string,
-    number: string,
-  ): Promise<readonly Quotation[]> {
-    const rows = await this.txm.getClient().quotation.findMany({
-      where: { tenantId, number },
-      include: withLines,
-      orderBy: { revision: 'desc' },
-    });
-    return rows.map((r) => Quotation.fromSnapshot(toSnapshot(r)));
+    return row ? SalesOrder.fromSnapshot(toSnapshot(row)) : null;
   }
 
   async list(
     tenantId: string,
-    f: ListQuotationsFilter,
-  ): Promise<ListQuotationsPage> {
+    f: ListSalesOrdersFilter,
+  ): Promise<ListSalesOrdersPage> {
     const client = this.txm.getClient();
     const where = {
       tenantId,
@@ -212,24 +223,24 @@ export class PrismaQuotationRepository implements QuotationRepository {
       ...(f.customerId ? { customerId: f.customerId } : {}),
     };
     const [rows, total] = await Promise.all([
-      client.quotation.findMany({
+      client.salesOrder.findMany({
         where,
         include: withLines,
-        orderBy: [{ createdAt: 'desc' }, { revision: 'desc' }],
+        orderBy: { createdAt: 'desc' },
         skip: f.offset,
         take: f.limit,
       }),
-      client.quotation.count({ where }),
+      client.salesOrder.count({ where }),
     ]);
     return {
-      items: rows.map((r) => Quotation.fromSnapshot(toSnapshot(r))),
+      items: rows.map((r) => SalesOrder.fromSnapshot(toSnapshot(r))),
       total,
     };
   }
 
-  async create(q: Quotation): Promise<void> {
-    const s = q.snapshot();
-    await this.txm.getClient().quotation.create({
+  async create(so: SalesOrder): Promise<void> {
+    const s = so.snapshot();
+    await this.txm.getClient().salesOrder.create({
       data: {
         id: s.id,
         tenantId: s.tenantId,
@@ -241,46 +252,49 @@ export class PrismaQuotationRepository implements QuotationRepository {
     });
   }
 
-  async save(q: Quotation): Promise<Quotation> {
-    const s = q.snapshot();
+  async save(so: SalesOrder): Promise<SalesOrder> {
+    const s = so.snapshot();
     const client = this.txm.getClient();
-    const result = await client.quotation.updateMany({
+    const result = await client.salesOrder.updateMany({
       where: { tenantId: s.tenantId, id: s.id, version: s.version },
       data: { ...headerData(s), version: s.version + 1 },
     });
     if (result.count !== 1) {
-      const actual = await client.quotation.findFirst({
+      const actual = await client.salesOrder.findFirst({
         where: { tenantId: s.tenantId, id: s.id },
         select: { version: true },
       });
-      throw new QuotationVersionConflictError(
+      throw new SalesOrderVersionConflictError(
         s.id,
         s.version,
         actual?.version ?? -1,
       );
     }
-    await client.quotationLine.deleteMany({ where: { quotationId: s.id } });
+    await client.salesOrderLine.deleteMany({ where: { salesOrderId: s.id } });
     if (s.lines.length > 0) {
-      await client.quotationLine.createMany({
+      await client.salesOrderLine.createMany({
         data: s.lines.map((l) => lineData(s.tenantId, s.id, l)),
       });
     }
-    return Quotation.fromSnapshot({ ...s, version: s.version + 1 });
+    return SalesOrder.fromSnapshot({ ...s, version: s.version + 1 });
   }
 
-  async listDueForExpiry(
-    onDate: string,
-    limit: number,
-  ): Promise<readonly Quotation[]> {
-    const rows = await this.txm.getClient().quotation.findMany({
+  async sumOpenExposure(
+    tenantId: string,
+    customerId: string,
+    currency: string,
+    excludeOrderId: string | null,
+  ): Promise<bigint> {
+    const agg = await this.txm.getClient().salesOrder.aggregate({
       where: {
-        status: QuotationStatus.Sent,
-        validUntil: { lt: fromIsoDate(onDate) },
+        tenantId,
+        customerId,
+        currency,
+        status: { in: [...OPEN_EXPOSURE_STATUSES] },
+        ...(excludeOrderId ? { id: { not: excludeOrderId } } : {}),
       },
-      include: withLines,
-      orderBy: { validUntil: 'asc' },
-      take: limit,
+      _sum: { totalMinor: true },
     });
-    return rows.map((r) => Quotation.fromSnapshot(toSnapshot(r)));
+    return agg._sum.totalMinor ?? 0n;
   }
 }

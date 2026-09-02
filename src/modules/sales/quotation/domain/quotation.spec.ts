@@ -1,4 +1,9 @@
 import {
+  InvalidDocumentLineError,
+  computeDocumentLine,
+} from '../../../../shared/domain';
+
+import {
   IllegalQuotationTransitionError,
   InvalidQuotationError,
   Quotation,
@@ -6,7 +11,6 @@ import {
   QuotationNotEditableError,
   QuotationStatus,
   canTransition,
-  computeLine,
   type QuotationLineInput,
 } from './quotation';
 
@@ -86,13 +90,13 @@ describe('Quotation', () => {
   });
 
   it('rejects bad lines and headers', () => {
-    expect(() => computeLine(line({ quantity: 0n }), 'THB', 1)).toThrow(
-      InvalidQuotationError,
+    expect(() => computeDocumentLine(line({ quantity: 0n }), 'THB', 1)).toThrow(
+      InvalidDocumentLineError,
     );
-    expect(() => computeLine(line({ discountBp: 10_001 }), 'THB', 1)).toThrow(
-      InvalidQuotationError,
-    );
-    expect(() => make([line(), line()])).toThrow(InvalidQuotationError);
+    expect(() =>
+      computeDocumentLine(line({ discountBp: 10_001 }), 'THB', 1),
+    ).toThrow(InvalidDocumentLineError);
+    expect(() => make([line(), line()])).toThrow(InvalidDocumentLineError);
     expect(() => make([line()], '2026-09-01')).toThrow(InvalidQuotationError);
   });
 

@@ -1,4 +1,4 @@
-import { Expose, Transform, Type } from 'class-transformer';
+import { Expose, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -15,7 +15,9 @@ import {
 
 import {
   MAX_DISCOUNT_BP,
-  MAX_LINES,
+  MAX_DOCUMENT_LINES,
+} from '../../../../../shared/domain';
+import {
   MAX_NOTES_LENGTH,
   MAX_PAYMENT_TERMS_DAYS,
   QuotationStatus,
@@ -25,9 +27,6 @@ import {
 const INT = /^\d{1,19}$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const CURRENCY = /^[A-Za-z]{3}$/;
-
-const toBigInt = ({ value }: { value: unknown }): unknown =>
-  typeof value === 'string' && INT.test(value) ? BigInt(value) : value;
 
 export class QuotationLineRequestDto {
   @Expose() @IsString() @Length(1, 36) itemId!: string;
@@ -64,7 +63,7 @@ export class CreateQuotationRequestDto {
   notes?: string;
   @Expose()
   @IsArray()
-  @ArrayMaxSize(MAX_LINES)
+  @ArrayMaxSize(MAX_DOCUMENT_LINES)
   @ValidateNested({ each: true })
   @Type(() => QuotationLineRequestDto)
   lines!: QuotationLineRequestDto[];
@@ -87,7 +86,7 @@ export class UpdateQuotationRequestDto {
   @Expose()
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(MAX_LINES)
+  @ArrayMaxSize(MAX_DOCUMENT_LINES)
   @ValidateNested({ each: true })
   @Type(() => QuotationLineRequestDto)
   lines?: QuotationLineRequestDto[];
@@ -238,6 +237,3 @@ export function toLineRequest(d: QuotationLineRequestDto) {
     discountBp: d.discountBp ?? 0,
   };
 }
-
-// Keep the transform helper referenced for DTOs that opt into bigint coercion later.
-export const bigintTransform = Transform(toBigInt);

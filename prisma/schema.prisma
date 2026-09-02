@@ -75,6 +75,10 @@ model Tenant {
   documentSequences              DocumentSequence[]
   quotations                     Quotation[]
   quotationLines                 QuotationLine[]
+  salesOrders                    SalesOrder[]
+  salesOrderLines                SalesOrderLine[]
+  deliveryNotes                  DeliveryNote[]
+  deliveryNoteLines              DeliveryNoteLine[]
 
   @@map("tenant")
 }
@@ -1063,4 +1067,127 @@ model BomComponent {
   @@unique([bomId, componentItemId])
   @@index([tenantId, componentItemId])
   @@map("md_bom_component")
+}
+
+// ---------------------------------------------------------------------------
+// Sales — Sales Order + Delivery Note (EPIC-B.2)
+// ---------------------------------------------------------------------------
+
+/// Status: DRAFT | PENDING_APPROVAL | CONFIRMED | PARTIALLY_DELIVERED |
+/// DELIVERED | REJECTED | CANCELLED. creditStatus: NOT_CHECKED | NO_LIMIT |
+/// OK | EXCEEDED (evaluated at submit; exposure = open orders + this one).
+model SalesOrder {
+  id                    String    @id @db.NVarChar(36)
+  tenantId              String    @db.NVarChar(36)
+  companyId             String    @db.NVarChar(36)
+  number                String    @db.NVarChar(24)
+  quotationId           String?   @db.NVarChar(36)
+  customerId            String    @db.NVarChar(36)
+  currency              String    @db.NVarChar(3)
+  orderDate             DateTime  @db.Date
+  requestedDeliveryDate DateTime? @db.Date
+  status                String    @db.NVarChar(20)
+  paymentTermsDays      Int
+  notes                 String?   @db.NVarChar(Max)
+  subtotalMinor         BigInt
+  discountMinor         BigInt
+  taxMinor              BigInt
+  totalMinor            BigInt
+  creditStatus          String    @default("NOT_CHECKED") @db.NVarChar(12)
+  creditExposureMinor   BigInt    @default(0)
+  approvalRequestId     String?   @db.NVarChar(36)
+  version               Int       @default(0)
+  createdBy             String    @db.NVarChar(64)
+  submittedAt           DateTime? @db.DateTime2
+  confirmedAt           DateTime? @db.DateTime2
+  resolvedAt            DateTime? @db.DateTime2
+  cancelReason          String?   @db.NVarChar(500)
+  createdAt             DateTime  @db.DateTime2
+  updatedAt             DateTime  @updatedAt @db.DateTime2
+
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lines         SalesOrderLine[]
+  deliveryNotes DeliveryNote[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, customerId, status])
+  @@index([tenantId, status])
+  @@map("sls_order")
+}
+
+model SalesOrderLine {
+  id             String  @id @db.NVarChar(36)
+  tenantId       String  @db.NVarChar(36)
+  salesOrderId   String  @db.NVarChar(36)
+  lineNo         Int
+  itemId         String  @db.NVarChar(36)
+  itemSku        String  @db.NVarChar(64)
+  description    String  @db.NVarChar(200)
+  uomCode        String  @db.NVarChar(16)
+  quantity       BigInt
+  deliveredQty   BigInt  @default(0)
+  unitPriceMinor BigInt
+  priceSource    String  @db.NVarChar(12)
+  priceListId    String? @db.NVarChar(36)
+  discountBp     Int     @default(0)
+  discountMinor  BigInt
+  netMinor       BigInt
+  taxCodeId      String  @db.NVarChar(36)
+  taxCode        String  @db.NVarChar(16)
+  taxRateBp      Int
+  taxMinor       BigInt
+  totalMinor     BigInt
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  salesOrder SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([salesOrderId, lineNo])
+  @@index([tenantId, itemId])
+  @@map("sls_order_line")
+}
+
+/// Status: DRAFT | SHIPPED | CANCELLED. Shipping posts deliveredQty onto
+/// the order lines in the same transaction. Stock movement is Phase C.
+model DeliveryNote {
+  id            String    @id @db.NVarChar(36)
+  tenantId      String    @db.NVarChar(36)
+  salesOrderId  String    @db.NVarChar(36)
+  number        String    @db.NVarChar(24)
+  status        String    @db.NVarChar(12)
+  deliveryDate  DateTime  @db.Date
+  warehouseId   String?   @db.NVarChar(36)
+  shipToAddress String?   @db.NVarChar(500)
+  notes         String?   @db.NVarChar(Max)
+  version       Int       @default(0)
+  createdBy     String    @db.NVarChar(64)
+  shippedAt     DateTime? @db.DateTime2
+  createdAt     DateTime  @db.DateTime2
+  updatedAt     DateTime  @updatedAt @db.DateTime2
+
+  tenant     Tenant             @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  salesOrder SalesOrder         @relation(fields: [salesOrderId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lines      DeliveryNoteLine[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, salesOrderId])
+  @@map("sls_delivery_note")
+}
+
+model DeliveryNoteLine {
+  id               String @id @db.NVarChar(36)
+  tenantId         String @db.NVarChar(36)
+  deliveryNoteId   String @db.NVarChar(36)
+  lineNo           Int
+  salesOrderLineId String @db.NVarChar(36)
+  itemId           String @db.NVarChar(36)
+  itemSku          String @db.NVarChar(64)
+  uomCode          String @db.NVarChar(16)
+  quantity         BigInt
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  deliveryNote DeliveryNote @relation(fields: [deliveryNoteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([deliveryNoteId, lineNo])
+  @@index([tenantId, salesOrderLineId])
+  @@map("sls_delivery_note_line")
 }

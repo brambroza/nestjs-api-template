@@ -14,25 +14,27 @@ import {
   type TransactionManager,
 } from '../../../../shared/transaction';
 import {
+  DOCUMENT_PRICING,
+  SALES_REF_LOOKUP,
+  SalesRefInvalidError,
+  priceLines,
+  type DocumentPricing,
+  type LineRequest,
+  type SalesRefLookup,
+} from '../../shared';
+import {
   Quotation,
   QuotationNotFoundError,
   QuotationVersionConflictError,
-  SalesRefInvalidError,
   type QuotationEvent,
   type QuotationStatus,
 } from '../domain';
 
-import { priceLines, type LineRequest } from './line-pricer';
 import { QUOTATION_OUTBOX, type QuotationOutbox } from './ports/outbox.port';
-import { QUOTATION_PRICING, type QuotationPricing } from './ports/pricing.port';
 import {
   QUOTATION_REPOSITORY,
   type QuotationRepository,
 } from './ports/quotation.repository';
-import {
-  SALES_REF_LOOKUP,
-  type SalesRefLookup,
-} from './ports/sales-ref-lookup.port';
 
 export const QUOTATION_NUMBER_PREFIX = 'QT';
 export const DEFAULT_VALIDITY_DAYS = 30;
@@ -86,7 +88,7 @@ export class CreateQuotationUseCase {
   constructor(
     @Inject(QUOTATION_REPOSITORY) private readonly repo: QuotationRepository,
     @Inject(SALES_REF_LOOKUP) private readonly refs: SalesRefLookup,
-    @Inject(QUOTATION_PRICING) private readonly pricing: QuotationPricing,
+    @Inject(DOCUMENT_PRICING) private readonly pricing: DocumentPricing,
     @Inject(DOCUMENT_NUMBER_GENERATOR)
     private readonly numbers: DocumentNumberGenerator,
     @Inject(TRANSACTION_MANAGER) private readonly tx: TransactionManager,
@@ -167,7 +169,7 @@ export class UpdateQuotationUseCase {
   constructor(
     @Inject(QUOTATION_REPOSITORY) private readonly repo: QuotationRepository,
     @Inject(SALES_REF_LOOKUP) private readonly refs: SalesRefLookup,
-    @Inject(QUOTATION_PRICING) private readonly pricing: QuotationPricing,
+    @Inject(DOCUMENT_PRICING) private readonly pricing: DocumentPricing,
     @Inject(TRANSACTION_MANAGER) private readonly tx: TransactionManager,
     @Inject(TENANT_CONTEXT) private readonly tenant: TenantContext,
     @Inject(CLOCK) private readonly clock: Clock,

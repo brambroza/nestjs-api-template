@@ -170,6 +170,24 @@ export const MESSAGES_TH: Readonly<Record<string, string>> = {
   'SALES.REF_INVALID':
     'ข้อมูลอ้างอิง (บริษัท/ลูกค้า/สินค้า/สกุลเงิน) ไม่ถูกต้อง',
   'SALES.CURRENCY_MISMATCH': 'สกุลเงินของราคาสินค้าไม่ตรงกับสกุลเงินของเอกสาร',
+  'SALES.ORDER_NOT_FOUND': 'ไม่พบใบสั่งขายที่ระบุ',
+  'SALES.ILLEGAL_ORDER_TRANSITION':
+    'ไม่สามารถเปลี่ยนสถานะใบสั่งขายจากสถานะปัจจุบันได้',
+  'SALES.ORDER_NOT_EDITABLE': 'แก้ไขได้เฉพาะใบสั่งขายสถานะร่างเท่านั้น',
+  'SALES.INVALID_ORDER': 'ข้อมูลใบสั่งขายไม่ถูกต้อง',
+  'SALES.CREDIT_LIMIT_EXCEEDED':
+    'ยอดหนี้คงค้างเกินวงเงินเครดิตของลูกค้า และไม่มีนโยบายอนุมัติรองรับ',
+  'SALES.APPROVAL_PENDING': 'ใบสั่งขายยังรอการอนุมัติอยู่',
+  'SALES.OVER_DELIVERY': 'จำนวนที่ส่งมอบเกินจำนวนคงเหลือในใบสั่งขาย',
+  'SALES.QUOTATION_NOT_CONVERTIBLE':
+    'ใบเสนอราคานี้ไม่สามารถแปลงเป็นใบสั่งขายได้ (ต้องเป็นสถานะตอบรับและยังไม่เคยแปลง)',
+  'SALES.ORDER_HAS_DELIVERIES':
+    'ใบสั่งขายนี้มีการส่งมอบแล้ว ไม่สามารถยกเลิกได้',
+  'SALES.DELIVERY_NOTE_NOT_FOUND': 'ไม่พบใบส่งสินค้าที่ระบุ',
+  'SALES.ILLEGAL_DELIVERY_NOTE_TRANSITION':
+    'ไม่สามารถเปลี่ยนสถานะใบส่งสินค้าจากสถานะปัจจุบันได้',
+  'SALES.INVALID_DELIVERY_NOTE': 'ข้อมูลใบส่งสินค้าไม่ถูกต้อง',
+  'DOMAIN.INVALID_DOCUMENT_LINE': 'ข้อมูลรายการสินค้าในเอกสารไม่ถูกต้อง',
 };
 
 const FALLBACK_TH = 'เกิดข้อผิดพลาดที่ไม่คาดคิด';

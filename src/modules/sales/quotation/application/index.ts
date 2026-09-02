@@ -1,10 +1,5 @@
 export * from './ports';
 export {
-  type LineRequest,
-  type PricingContext,
-  priceLines,
-} from './line-pricer';
-export {
   AcceptQuotationUseCase,
   CancelQuotationUseCase,
   CreateQuotationUseCase,
@@ -28,3 +23,9 @@ export {
   SYSTEM_ACTOR,
   type ExpireQuotationsResult,
 } from './expire-quotations.use-case';
+export {
+  QUOTATION_CONVERSION,
+  QuotationConversionService,
+  type ConvertibleQuotation,
+  type QuotationConversion,
+} from './quotation-conversion.gateway';

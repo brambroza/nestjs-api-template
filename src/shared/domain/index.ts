@@ -19,3 +19,16 @@ export {
   toIsoDate,
   type IsoDate,
 } from './iso-date';
+export {
+  InvalidDocumentLineError,
+  MAX_DISCOUNT_BP,
+  MAX_DOCUMENT_LINES,
+  PriceSource,
+  buildDocumentLines,
+  computeDocumentLine,
+  computeDocumentTotals,
+  isPriceSource,
+  type DocumentLineInput,
+  type DocumentLineSnapshot,
+  type DocumentTotals,
+} from './document-line';

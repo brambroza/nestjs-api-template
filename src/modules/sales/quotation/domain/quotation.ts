@@ -1,7 +1,11 @@
 import {
   Money,
+  buildDocumentLines,
+  computeDocumentTotals,
   isIsoDate,
-  sumMoney,
+  type DocumentLineInput,
+  type DocumentLineSnapshot,
+  type DocumentTotals,
   type IsoDate,
 } from '../../../../shared/domain';
 import { DomainError } from '../../../../shared/errors';
@@ -20,15 +24,6 @@ export type QuotationStatus =
   (typeof QuotationStatus)[keyof typeof QuotationStatus];
 export function isQuotationStatus(v: string): v is QuotationStatus {
   return (Object.values(QuotationStatus) as string[]).includes(v);
-}
-
-export const PriceSource = {
-  PriceList: 'PRICE_LIST',
-  Manual: 'MANUAL',
-} as const;
-export type PriceSource = (typeof PriceSource)[keyof typeof PriceSource];
-export function isPriceSource(v: string): v is PriceSource {
-  return (Object.values(PriceSource) as string[]).includes(v);
 }
 
 /**
@@ -117,172 +112,15 @@ export class QuotationVersionConflictError extends DomainError {
   }
 }
 
-export class SalesRefInvalidError extends DomainError {
-  readonly code = 'SALES.REF_INVALID';
-}
-
-export class CurrencyMismatchError extends DomainError {
-  readonly code = 'SALES.CURRENCY_MISMATCH';
-  constructor(
-    readonly documentCurrency: string,
-    readonly priceCurrency: string,
-    readonly itemId: string,
-  ) {
-    super(
-      `Item ${itemId} is priced in ${priceCurrency} but the document is in ${documentCurrency}`,
-    );
-  }
-}
-
 // ---- lines -----------------------------------------------------------------
 
-export const MAX_LINES = 500;
-export const MAX_DISCOUNT_BP = 10_000;
-
-/** A line as the application layer hands it in: already priced and taxed. */
-export interface QuotationLineInput {
-  readonly id: string;
-  readonly itemId: string;
-  readonly itemSku: string;
-  readonly description: string;
-  readonly uomCode: string;
-  readonly quantity: bigint;
-  readonly unitPriceMinor: bigint;
-  readonly priceSource: PriceSource;
-  readonly priceListId: string | null;
-  readonly discountBp: number;
-  readonly taxCodeId: string;
-  readonly taxCode: string;
-  readonly taxRateBp: number;
-}
-
-export interface QuotationLineSnapshot extends QuotationLineInput {
-  readonly lineNo: number;
-  readonly discountMinor: bigint;
-  readonly netMinor: bigint;
-  readonly taxMinor: bigint;
-  readonly totalMinor: bigint;
-}
-
-export interface QuotationTotals {
-  readonly subtotalMinor: bigint;
-  readonly discountMinor: bigint;
-  readonly taxMinor: bigint;
-  readonly totalMinor: bigint;
-}
+/** Line shapes are the shared document-line kernel (src/shared/domain/document-line.ts). */
+export type QuotationLineInput = DocumentLineInput;
+export type QuotationLineSnapshot = DocumentLineSnapshot;
+export type QuotationTotals = DocumentTotals;
 
 function isInt(v: number): boolean {
   return Number.isInteger(v);
-}
-
-/**
- * Pure line arithmetic. gross = unit × qty; discount = gross × bp;
- * net = gross − discount; tax = net × rate; total = net + tax. Every
- * rounding is half-up at the satang (Money.percent), applied per line
- * — the Thai Revenue Department accepts per-line VAT rounding as long
- * as the invoice total is the sum of the lines, which it is here.
- */
-export function computeLine(
-  input: QuotationLineInput,
-  currency: string,
-  lineNo: number,
-): QuotationLineSnapshot {
-  if (input.quantity <= 0n) {
-    throw new InvalidQuotationError(
-      `line ${String(lineNo)}: quantity must be > 0`,
-    );
-  }
-  if (input.unitPriceMinor < 0n) {
-    throw new InvalidQuotationError(
-      `line ${String(lineNo)}: unit price must be >= 0`,
-    );
-  }
-  if (
-    !isInt(input.discountBp) ||
-    input.discountBp < 0 ||
-    input.discountBp > MAX_DISCOUNT_BP
-  ) {
-    throw new InvalidQuotationError(
-      `line ${String(lineNo)}: discountBp must be an integer 0..${String(MAX_DISCOUNT_BP)}`,
-    );
-  }
-  if (!isInt(input.taxRateBp) || input.taxRateBp < 0) {
-    throw new InvalidQuotationError(
-      `line ${String(lineNo)}: taxRateBp must be >= 0`,
-    );
-  }
-  const description = input.description.trim();
-  if (description.length === 0 || description.length > 200) {
-    throw new InvalidQuotationError(
-      `line ${String(lineNo)}: description must be 1..200 characters`,
-    );
-  }
-  const uomCode = input.uomCode.trim().toUpperCase();
-  if (uomCode.length === 0) {
-    throw new InvalidQuotationError(
-      `line ${String(lineNo)}: uomCode is required`,
-    );
-  }
-  const gross = Money.of(input.unitPriceMinor, currency).multiply(
-    input.quantity,
-  );
-  const discount = gross.percent(BigInt(input.discountBp));
-  const net = gross.subtract(discount);
-  const tax = net.percent(BigInt(input.taxRateBp));
-  const total = net.add(tax);
-  return {
-    ...input,
-    description,
-    uomCode,
-    lineNo,
-    discountMinor: discount.amount,
-    netMinor: net.amount,
-    taxMinor: tax.amount,
-    totalMinor: total.amount,
-  };
-}
-
-export function computeTotals(
-  lines: readonly QuotationLineSnapshot[],
-  currency: string,
-): QuotationTotals {
-  const gross = sumMoney(
-    lines.map((l) => Money.of(l.unitPriceMinor, currency).multiply(l.quantity)),
-    currency,
-  );
-  const discount = sumMoney(
-    lines.map((l) => Money.of(l.discountMinor, currency)),
-    currency,
-  );
-  const tax = sumMoney(
-    lines.map((l) => Money.of(l.taxMinor, currency)),
-    currency,
-  );
-  const total = gross.subtract(discount).add(tax);
-  return {
-    subtotalMinor: gross.amount,
-    discountMinor: discount.amount,
-    taxMinor: tax.amount,
-    totalMinor: total.amount,
-  };
-}
-
-function buildLines(
-  inputs: readonly QuotationLineInput[],
-  currency: string,
-): readonly QuotationLineSnapshot[] {
-  if (inputs.length > MAX_LINES) {
-    throw new InvalidQuotationError(
-      `a quotation has at most ${String(MAX_LINES)} lines`,
-    );
-  }
-  const ids = new Set<string>();
-  for (const l of inputs) {
-    if (ids.has(l.id))
-      throw new InvalidQuotationError(`duplicate line id ${l.id}`);
-    ids.add(l.id);
-  }
-  return inputs.map((l, i) => computeLine(l, currency, i + 1));
 }
 
 // ---- aggregate -------------------------------------------------------------
@@ -402,7 +240,7 @@ export class Quotation {
     if (props.number.trim().length === 0) {
       throw new InvalidQuotationError('number is required');
     }
-    const lines = buildLines(props.lines, currency);
+    const lines = buildDocumentLines(props.lines, currency);
     return new Quotation({
       id: props.id,
       tenantId: props.tenantId,
@@ -416,7 +254,7 @@ export class Quotation {
       status: QuotationStatus.Draft,
       paymentTermsDays: props.paymentTermsDays,
       notes,
-      ...computeTotals(lines, currency),
+      ...computeDocumentTotals(lines, currency),
       version: 0,
       createdBy: props.createdBy,
       sentAt: null,
@@ -479,11 +317,11 @@ export class Quotation {
 
   replaceLines(inputs: readonly QuotationLineInput[], now: Date): Quotation {
     this.assertEditable();
-    const lines = buildLines(inputs, this.s.currency);
+    const lines = buildDocumentLines(inputs, this.s.currency);
     return new Quotation({
       ...this.s,
       lines,
-      ...computeTotals(lines, this.s.currency),
+      ...computeDocumentTotals(lines, this.s.currency),
       updatedAt: now,
     });
   }

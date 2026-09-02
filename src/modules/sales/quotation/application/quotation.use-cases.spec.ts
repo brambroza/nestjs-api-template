@@ -1,8 +1,13 @@
+import { CurrencyMismatchError } from '../../shared';
 import {
-  CurrencyMismatchError,
-  QuotationStatus,
-  QuotationVersionConflictError,
-} from '../domain';
+  FakeNumbers,
+  FakeTx,
+  FixedClock,
+  InMemoryPricing,
+  InMemorySalesRefLookup,
+  tenantOf,
+} from '../../shared/testing';
+import { QuotationStatus, QuotationVersionConflictError } from '../domain';
 
 import { ExpireQuotationsUseCase } from './expire-quotations.use-case';
 import {
@@ -13,14 +18,8 @@ import {
   UpdateQuotationUseCase,
 } from './quotation.use-cases';
 import {
-  FakeNumbers,
-  FakeTx,
-  FixedClock,
   InMemoryOutbox,
-  InMemoryPricing,
   InMemoryQuotationRepository,
-  InMemorySalesRefLookup,
-  tenantOf,
 } from './testing/in-memory';
 
 describe('Quotation use cases', () => {
@@ -46,6 +45,7 @@ describe('Quotation use cases', () => {
       code: 'CUST-001',
       name: 'Demo',
       paymentTermsDays: 30,
+      creditLimitMinor: 1_000_000_00n,
       isActive: true,
     });
     refs.items.set('i1', {

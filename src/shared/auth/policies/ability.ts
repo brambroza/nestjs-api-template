@@ -50,6 +50,8 @@ export type Subject =
   | 'ApprovalRequest'
   | 'ApprovalDelegation'
   | 'Quotation'
+  | 'SalesOrder'
+  | 'DeliveryNote'
   | 'all';
 
 export type AppSubjects = InferSubjects<Subject>;

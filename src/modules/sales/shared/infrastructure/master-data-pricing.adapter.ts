@@ -8,7 +8,7 @@ import {
 import type {
   PriceLookupInput,
   PriceLookupResult,
-  QuotationPricing,
+  DocumentPricing,
   VatLookupResult,
 } from '../application/ports/pricing.port';
 
@@ -18,7 +18,7 @@ import type {
  * this file is the only place that notices.
  */
 @Injectable()
-export class MasterDataPricingAdapter implements QuotationPricing {
+export class MasterDataPricingAdapter implements DocumentPricing {
   constructor(
     private readonly resolvePriceUseCase: ResolvePriceUseCase,
     private readonly resolveTaxUseCase: ResolveTaxUseCase,
