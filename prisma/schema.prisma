@@ -57,6 +57,11 @@ model Tenant {
   partnerAddresses               PartnerAddress[]
   pdpaConsents                   PdpaConsent[]
   pdpaRequests                   PdpaRequest[]
+  itemCategories                 ItemCategory[]
+  priceLists                     PriceList[]
+  priceListLines                 PriceListLine[]
+  boms                           Bom[]
+  bomComponents                  BomComponent[]
 
   @@map("tenant")
 }
@@ -364,6 +369,13 @@ model Item {
   name           String   @db.NVarChar(200)
   description    String?  @db.NVarChar(Max)
   defaultUomCode String   @db.NVarChar(16)
+  /// FK-less reference to md_item_category.id (validated at the
+  /// application layer via CATEGORY_LOOKUP, same pattern as branch->company).
+  categoryId     String?  @db.NVarChar(36)
+  /// NONE | LOT | SERIAL — how inventory identifies units of this item.
+  trackingPolicy String   @default("NONE") @db.NVarChar(8)
+  /// Only meaningful when trackingPolicy = LOT.
+  shelfLifeDays  Int?
   isActive       Boolean  @default(true)
   createdAt      DateTime @default(now()) @db.DateTime2
   updatedAt      DateTime @updatedAt @db.DateTime2
@@ -371,6 +383,7 @@ model Item {
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@unique([tenantId, sku])
+  @@index([tenantId, categoryId])
   @@index([tenantId, name])
   @@map("md_item")
 }
@@ -421,6 +434,12 @@ model ProductionOrder {
 
   orderedQuantityValue     BigInt
   orderedQuantityUom       String   @db.NVarChar(16)
+
+  /// The finished good being made. Nullable for orders created before
+  /// master BOM existed; when set, BOM_LOOKUP resolves the active
+  /// master-data BOM for this SKU unless the order carries its own
+  /// frozen bom_line snapshot.
+  productSku               String?  @db.NVarChar(64)
 
   totalAmountSatang        BigInt
   totalAmountCurrency      String   @db.NVarChar(3)
@@ -539,4 +558,120 @@ model OutboxMessage {
   @@index([tenantId, aggregateId])
   @@index([tenantId, aggregateId, occurredAt])
   @@map("outbox_message")
+}
+
+// ---------------------------------------------------------------------------
+// Item extras — categories, price lists, master BOM (EPIC-A.3)
+// ---------------------------------------------------------------------------
+
+/// Tree via parentId + materialized `path` ("/rootId/childId/.../selfId/")
+/// so "everything under X" is one `startsWith` predicate. Depth is
+/// capped at 50 by the domain (path column bound), which is "unlimited"
+/// for any real catalogue.
+model ItemCategory {
+  id        String   @id @db.NVarChar(36)
+  tenantId  String   @db.NVarChar(36)
+  code      String   @db.NVarChar(32)
+  name      String   @db.NVarChar(200)
+  parentId  String?  @db.NVarChar(36)
+  path      String   @db.NVarChar(2000)
+  depth     Int
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.DateTime2
+  updatedAt DateTime @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, parentId])
+  @@map("md_item_category")
+}
+
+/// customerId NULL = general list. Resolution prefers a customer-specific
+/// list over a general one, then the highest minQty tier <= quantity.
+model PriceList {
+  id         String    @id @db.NVarChar(36)
+  tenantId   String    @db.NVarChar(36)
+  code       String    @db.NVarChar(32)
+  name       String    @db.NVarChar(200)
+  currency   String    @db.NVarChar(3)
+  customerId String?   @db.NVarChar(36)
+  validFrom  DateTime  @db.DateTime2
+  validTo    DateTime? @db.DateTime2
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now()) @db.DateTime2
+  updatedAt  DateTime  @updatedAt @db.DateTime2
+
+  tenant Tenant          @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lines  PriceListLine[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId, customerId, validFrom])
+  @@map("md_price_list")
+}
+
+model PriceListLine {
+  id              String   @id @db.NVarChar(36)
+  tenantId        String   @db.NVarChar(36)
+  priceListId     String   @db.NVarChar(36)
+  itemId          String   @db.NVarChar(36)
+  uomCode         String   @db.NVarChar(16)
+  /// Quantity tier: this price applies from minQty upward.
+  minQty          BigInt   @default(1)
+  unitPriceSatang BigInt
+  createdAt       DateTime @default(now()) @db.DateTime2
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  priceList PriceList @relation(fields: [priceListId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([priceListId, itemId, uomCode, minQty])
+  @@index([tenantId, itemId])
+  @@map("md_price_list_line")
+}
+
+/// Master BOM per product item, versioned. At most one ACTIVE version per
+/// item (filtered unique). Production orders resolve their component
+/// requirements from the active version of the order's productSku.
+model Bom {
+  id         String   @id @db.NVarChar(36)
+  tenantId   String   @db.NVarChar(36)
+  itemId     String   @db.NVarChar(36)
+  productSku String   @db.NVarChar(64)
+  version    Int
+  name       String?  @db.NVarChar(200)
+  isActive   Boolean  @default(false)
+  createdAt  DateTime @default(now()) @db.DateTime2
+  updatedAt  DateTime @updatedAt @db.DateTime2
+
+  tenant     Tenant         @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  components BomComponent[]
+
+  @@unique([tenantId, itemId, version])
+  @@index([tenantId, productSku, isActive])
+  @@map("md_bom")
+}
+
+/// Same arithmetic shape as production-order's BomLine (R5): ratios in
+/// basis points, quantities as bigint in the component's counted unit.
+model BomComponent {
+  id               String @id @db.NVarChar(36)
+  tenantId         String @db.NVarChar(36)
+  bomId            String @db.NVarChar(36)
+  lineNo           Int
+  componentItemId  String @db.NVarChar(36)
+  componentSku     String @db.NVarChar(64)
+  qtyPerUnitValue  BigInt
+  qtyPerUnitUom    String @db.NVarChar(16)
+  scrapBasisPoints BigInt @default(0)
+  yieldBasisPoints BigInt @default(10000)
+  minPackValue     BigInt @default(1)
+  minPackUom       String @db.NVarChar(16)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  bom    Bom    @relation(fields: [bomId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([bomId, lineNo])
+  @@unique([bomId, componentItemId])
+  @@index([tenantId, componentItemId])
+  @@map("md_bom_component")
 }

@@ -22,6 +22,7 @@ export class ProductionOrderResponseDto {
   @Expose() tenantId!: string;
   @Expose() createdBy!: string;
   @Expose() status!: string;
+  @Expose() productSku!: string | null;
 
   @Expose()
   @Type(() => ResponseQuantity)

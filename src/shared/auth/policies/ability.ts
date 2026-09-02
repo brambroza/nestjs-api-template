@@ -38,6 +38,9 @@ export type Subject =
   | 'PartnerAddress'
   | 'PdpaConsent'
   | 'PdpaRequest'
+  | 'ItemCategory'
+  | 'PriceList'
+  | 'Bom'
   | 'all';
 
 export type AppSubjects = InferSubjects<Subject>;

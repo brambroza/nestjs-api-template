@@ -1,6 +1,7 @@
 import { Expose, Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -9,6 +10,8 @@ import {
   Max,
   Min,
 } from 'class-validator';
+
+import { TrackingPolicy } from '../../domain';
 
 export class CreateItemRequestDto {
   @Expose()
@@ -37,6 +40,25 @@ export class CreateItemRequestDto {
     message: 'defaultUomCode may contain letters, digits, underscore, dash',
   })
   defaultUomCode!: string;
+
+  @Expose()
+  @IsOptional()
+  @IsString()
+  @Length(1, 36)
+  categoryId?: string;
+
+  @Expose()
+  @IsOptional()
+  @IsString()
+  @IsIn(Object.values(TrackingPolicy))
+  trackingPolicy?: TrackingPolicy;
+
+  @Expose()
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(3650)
+  shelfLifeDays?: number;
 }
 
 export class ListItemsQueryDto {
@@ -60,4 +82,18 @@ export class ListItemsQueryDto {
   @Transform(({ value }) => value === 'true' || value === true)
   @IsBoolean()
   activeOnly?: boolean;
+}
+
+export class ImportItemsQueryDto {
+  @Expose()
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  dryRun?: boolean;
+
+  @Expose()
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  allowPartial?: boolean;
 }

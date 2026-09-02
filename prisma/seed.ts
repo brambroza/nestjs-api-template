@@ -74,6 +74,13 @@ async function main(): Promise<void> {
           { action: 'create', subject: 'PartnerAddress' },
           { action: 'read', subject: 'PdpaConsent' },
           { action: 'create', subject: 'PdpaConsent' },
+          { action: 'read', subject: 'ItemCategory' },
+          { action: 'create', subject: 'ItemCategory' },
+          { action: 'read', subject: 'PriceList' },
+          { action: 'create', subject: 'PriceList' },
+          { action: 'read', subject: 'Bom' },
+          { action: 'create', subject: 'Bom' },
+          { action: 'update', subject: 'Bom' },
         ],
       },
       {
@@ -280,9 +287,23 @@ async function main(): Promise<void> {
       });
     }
 
+    // Item categories: FG (root), RM (root) > RM-STEEL (child)
+    const categories = [
+      { id: 'cat-fg', code: 'FG', name: 'Finished goods', parentId: null as string | null, path: '/cat-fg/', depth: 0 },
+      { id: 'cat-rm', code: 'RM', name: 'Raw materials', parentId: null as string | null, path: '/cat-rm/', depth: 0 },
+      { id: 'cat-rm-steel', code: 'RM-STEEL', name: 'Steel', parentId: 'cat-rm' as string | null, path: '/cat-rm/cat-rm-steel/', depth: 1 },
+    ];
+    for (const c of categories) {
+      await prisma.itemCategory.upsert({
+        where: { tenantId_code: { tenantId, code: c.code } },
+        update: { name: c.name, parentId: c.parentId, path: c.path, depth: c.depth },
+        create: { ...c, tenantId },
+      });
+    }
+
     await prisma.item.upsert({
       where: { tenantId_sku: { tenantId, sku: 'FIN-A' } },
-      update: {},
+      update: { categoryId: 'cat-fg' },
       create: {
         id: 'item-fin-a',
         tenantId,
@@ -290,8 +311,90 @@ async function main(): Promise<void> {
         name: 'Finished Product A',
         description: 'Demo finished good — assembled from RAW-A',
         defaultUomCode: 'PCS',
+        categoryId: 'cat-fg',
+        trackingPolicy: 'SERIAL',
       },
     });
+    await prisma.item.upsert({
+      where: { tenantId_sku: { tenantId, sku: 'RAW-A' } },
+      update: { categoryId: 'cat-rm' },
+      create: {
+        id: 'item-raw-a',
+        tenantId,
+        sku: 'RAW-A',
+        name: 'Raw Material A',
+        defaultUomCode: 'KG',
+        categoryId: 'cat-rm',
+        trackingPolicy: 'LOT',
+        shelfLifeDays: 365,
+      },
+    });
+
+    // Master BOM for FIN-A v1 (active): 2 KG of RAW-A per unit, 5 % scrap,
+    // 95 % yield, 10 KG packs. Production orders with productSku FIN-A
+    // resolve this at release (T-125).
+    await prisma.bom.upsert({
+      where: { id: 'bom-fin-a-v1' },
+      update: { isActive: true },
+      create: {
+        id: 'bom-fin-a-v1',
+        tenantId,
+        itemId: 'item-fin-a',
+        productSku: 'FIN-A',
+        version: 1,
+        name: 'FIN-A standard',
+        isActive: true,
+        components: {
+          create: [
+            {
+              id: 'bomc-fin-a-v1-1',
+              tenantId,
+              lineNo: 1,
+              componentItemId: 'item-raw-a',
+              componentSku: 'RAW-A',
+              qtyPerUnitValue: 2n,
+              qtyPerUnitUom: 'KG',
+              scrapBasisPoints: 500n,
+              yieldBasisPoints: 9_500n,
+              minPackValue: 10n,
+              minPackUom: 'KG',
+            },
+          ],
+        },
+      },
+    });
+
+    // Price lists: a general 2026 list with a 10+ tier, and a VIP list
+    // for CUST-001 that beats it regardless of quantity (T-123).
+    const priceLists = [
+      { id: 'pl-std-2026', code: 'STD-2026', name: 'Standard 2026', customerId: null as string | null },
+      { id: 'pl-vip-cust-001', code: 'VIP-CUST-001', name: 'VIP — Demo Customer', customerId: 'cust-001' as string | null },
+    ];
+    for (const pl of priceLists) {
+      await prisma.priceList.upsert({
+        where: { tenantId_code: { tenantId, code: pl.code } },
+        update: {},
+        create: {
+          ...pl,
+          tenantId,
+          currency: 'THB',
+          validFrom: new Date('2026-01-01T00:00:00.000Z'),
+          validTo: new Date('2026-12-31T23:59:59.000Z'),
+        },
+      });
+    }
+    const priceLines = [
+      { id: 'pll-std-1', priceListId: 'pl-std-2026', minQty: 1n, unitPriceSatang: 1_500_00n },
+      { id: 'pll-std-10', priceListId: 'pl-std-2026', minQty: 10n, unitPriceSatang: 1_400_00n },
+      { id: 'pll-vip-1', priceListId: 'pl-vip-cust-001', minQty: 1n, unitPriceSatang: 1_450_00n },
+    ];
+    for (const l of priceLines) {
+      await prisma.priceListLine.upsert({
+        where: { id: l.id },
+        update: { unitPriceSatang: l.unitPriceSatang },
+        create: { ...l, tenantId, itemId: 'item-fin-a', uomCode: 'PCS' },
+      });
+    }
 
     await prisma.customer.upsert({
       where: { tenantId_code: { tenantId, code: 'CUST-001' } },
@@ -378,12 +481,13 @@ async function main(): Promise<void> {
     // Production-order demo
     await prisma.productionOrder.upsert({
       where: { id: orderId },
-      update: {},
+      update: { productSku: 'FIN-A' },
       create: {
         id: orderId,
         tenantId,
         createdBy: 'user-operator',
         status: 'DRAFT',
+        productSku: 'FIN-A',
         orderedQuantityValue: 100n,
         orderedQuantityUom: 'pcs',
         totalAmountSatang: 20_000_00n,
@@ -396,33 +500,22 @@ async function main(): Promise<void> {
       },
     });
 
+    // No per-order bom_line snapshot any more: the demo order resolves the
+    // active master BOM for FIN-A. Rows left by older seeds would win over
+    // the master BOM, so clear them.
     await prisma.bomLine.deleteMany({
       where: { productionOrderId: orderId },
-    });
-    await prisma.bomLine.create({
-      data: {
-        id: randomUUID(),
-        tenantId,
-        productionOrderId: orderId,
-        sku: 'RAW-A',
-        requiredPerUnitValue: 2n,
-        requiredPerUnitUom: 'kg',
-        scrapBasisPoints: 500n,
-        yieldBasisPoints: 9_500n,
-        minPackValue: 10n,
-        minPackUom: 'kg',
-      },
     });
 
     await prisma.stockLevel.upsert({
       where: { tenantId_sku: { tenantId, sku: 'RAW-A' } },
-      update: { onHandValue: 500n, onHandUom: 'kg' },
+      update: { onHandValue: 500n, onHandUom: 'KG' },
       create: {
         id: randomUUID(),
         tenantId,
         sku: 'RAW-A',
         onHandValue: 500n,
-        onHandUom: 'kg',
+        onHandUom: 'KG',
       },
     });
 
@@ -433,9 +526,12 @@ async function main(): Promise<void> {
     admin@demo.local / admin123!    (roles: admin)
     operator@demo.local / operator123!  (roles: creator, planner, shopfloor)
   Org: Company DEMO > Branch HQ (00000) > Warehouse WH-MAIN (default)
-  Master data: UoM (PCS, KG, BOX), Item FIN-A, Customer CUST-001, Vendor VEND-001
+  Master data: UoM (PCS, KG, BOX), Categories FG / RM > RM-STEEL,
+    Items FIN-A (SERIAL, FG) + RAW-A (LOT 365d, RM), Customer CUST-001, Vendor VEND-001
+  BOM: FIN-A v1 active (2 KG RAW-A/unit, 5% scrap, 95% yield, 10 KG pack)
+  Price lists: STD-2026 (FIN-A 1,500.00 / 10+ 1,400.00), VIP-CUST-001 (1,450.00)
   Partner: CUST-001 has 1 primary contact, 1 default BILLING address, 1 MARKETING consent
-  Order: ${orderId} (DRAFT) + BOM RAW-A + 500 kg stock`);
+  Order: ${orderId} (DRAFT, productSku FIN-A -> master BOM) + 500 KG RAW-A stock`);
   } finally {
     await prisma.$disconnect();
   }

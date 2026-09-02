@@ -16,6 +16,7 @@ export function toResponseDto(
   dto.tenantId = snap.tenantId;
   dto.createdBy = snap.createdBy;
   dto.status = snap.status;
+  dto.productSku = snap.productSku;
   dto.orderedQuantity = {
     value: snap.orderedQuantity.value.toString(),
     uom: snap.orderedQuantity.uom,

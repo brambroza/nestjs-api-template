@@ -9,3 +9,7 @@ export {
   type ListItemsInput,
   type ListItemsResult,
 } from './list-items.use-case';
+export {
+  ImportItemsUseCase,
+  type ImportItemsInput,
+} from './import-items.use-case';

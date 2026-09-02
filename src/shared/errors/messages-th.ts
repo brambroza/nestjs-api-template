@@ -85,6 +85,33 @@ export const MESSAGES_TH: Readonly<Record<string, string>> = {
   'MASTER_DATA.PDPA_REQUEST_ILLEGAL_TRANSITION':
     'คำขอนี้ดำเนินการเสร็จสิ้นแล้ว ไม่สามารถเปลี่ยนสถานะได้อีก',
   'MASTER_DATA.INVALID_PDPA_REQUEST_FIELD': 'ข้อมูลคำขอไม่ถูกต้อง',
+
+  'MASTER_DATA.ITEM_CATEGORY_NOT_FOUND': 'ไม่พบหมวดหมู่สินค้าที่ระบุ',
+  'MASTER_DATA.DUPLICATE_ITEM_CATEGORY_CODE':
+    'รหัสหมวดหมู่สินค้านี้ถูกใช้งานแล้ว',
+  'MASTER_DATA.INVALID_ITEM_CATEGORY_FIELD': 'ข้อมูลหมวดหมู่สินค้าไม่ถูกต้อง',
+  'MASTER_DATA.PRICE_LIST_NOT_FOUND': 'ไม่พบรายการราคาที่ระบุ',
+  'MASTER_DATA.DUPLICATE_PRICE_LIST_CODE': 'รหัสรายการราคานี้ถูกใช้งานแล้ว',
+  'MASTER_DATA.DUPLICATE_PRICE_LIST_LINE':
+    'รายการราคานี้มีราคาสำหรับสินค้า/หน่วย/ขั้นจำนวนนี้อยู่แล้ว',
+  'MASTER_DATA.INVALID_PRICE_LIST_FIELD': 'ข้อมูลรายการราคาไม่ถูกต้อง',
+  'MASTER_DATA.PRICE_LIST_REF_INVALID':
+    'สินค้า ลูกค้า หรือหน่วยนับที่อ้างอิงไม่มีอยู่ในระบบ',
+  'MASTER_DATA.NO_PRICE_FOUND':
+    'ไม่พบราคาที่ใช้ได้สำหรับสินค้าและเงื่อนไขที่ระบุ',
+  'MASTER_DATA.BOM_NOT_FOUND': 'ไม่พบสูตรการผลิต (BOM) ที่ระบุ',
+  'MASTER_DATA.DUPLICATE_BOM_VERSION':
+    'สินค้านี้มีสูตรการผลิตเวอร์ชันนี้อยู่แล้ว',
+  'MASTER_DATA.BOM_PRODUCT_INVALID':
+    'สินค้าที่จะกำหนดสูตรการผลิตไม่มีอยู่หรือถูกระงับ',
+  'MASTER_DATA.BOM_COMPONENT_INVALID': 'ส่วนประกอบในสูตรการผลิตไม่ถูกต้อง',
+  'MASTER_DATA.BOM_CYCLE':
+    'สูตรการผลิตนี้จะทำให้สินค้าเป็นส่วนประกอบของตัวเอง (วนซ้ำ)',
+  'MASTER_DATA.INVALID_BOM': 'ข้อมูลสูตรการผลิตไม่ถูกต้อง',
+  'MASTER_DATA.IMPORT_TOO_LARGE':
+    'ไฟล์นำเข้ามีจำนวนแถวเกินกำหนด (สูงสุด 10,000 แถวต่อไฟล์)',
+  'MASTER_DATA.IMPORT_FILE_INVALID':
+    'ไฟล์นำเข้าไม่ถูกต้อง หรือขาดคอลัมน์ที่จำเป็น',
 };
 
 const FALLBACK_TH = 'เกิดข้อผิดพลาดที่ไม่คาดคิด';

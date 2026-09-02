@@ -18,6 +18,30 @@ export class InvalidItemFieldError extends DomainError {
   readonly code = 'MASTER_DATA.INVALID_ITEM_FIELD';
 }
 
+/**
+ * How inventory identifies units of this item (T-124).
+ *   NONE   — fungible; quantities only.
+ *   LOT    — batches share a lot number (+ optional shelf life).
+ *   SERIAL — every unit has its own serial number.
+ */
+export const TrackingPolicy = {
+  None: 'NONE',
+  Lot: 'LOT',
+  Serial: 'SERIAL',
+} as const;
+export type TrackingPolicy =
+  (typeof TrackingPolicy)[keyof typeof TrackingPolicy];
+
+export function isTrackingPolicy(v: string): v is TrackingPolicy {
+  return (
+    v === TrackingPolicy.None ||
+    v === TrackingPolicy.Lot ||
+    v === TrackingPolicy.Serial
+  );
+}
+
+export const SKU_PATTERN = /^[A-Za-z0-9._-]+$/;
+
 export interface ItemSnapshot {
   readonly id: string;
   readonly tenantId: string;
@@ -25,6 +49,9 @@ export interface ItemSnapshot {
   readonly name: string;
   readonly description: string | null;
   readonly defaultUomCode: string;
+  readonly categoryId: string | null;
+  readonly trackingPolicy: TrackingPolicy;
+  readonly shelfLifeDays: number | null;
   readonly isActive: boolean;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -37,6 +64,9 @@ export interface CreateItemProps {
   readonly name: string;
   readonly description?: string | null;
   readonly defaultUomCode: string;
+  readonly categoryId?: string | null;
+  readonly trackingPolicy?: TrackingPolicy;
+  readonly shelfLifeDays?: number | null;
   readonly now: Date;
 }
 
@@ -55,7 +85,7 @@ export class Item {
         'sku must be a non-empty string up to 64 characters',
       );
     }
-    if (!/^[A-Za-z0-9._-]+$/.test(sku)) {
+    if (!SKU_PATTERN.test(sku)) {
       throw new InvalidItemFieldError(
         'sku may contain letters, digits, dot, underscore, dash only',
       );
@@ -72,6 +102,25 @@ export class Item {
         'defaultUomCode must be a non-empty string up to 16 characters',
       );
     }
+    const trackingPolicy = props.trackingPolicy ?? TrackingPolicy.None;
+    const shelfLifeDays = props.shelfLifeDays ?? null;
+    if (shelfLifeDays !== null) {
+      if (trackingPolicy !== TrackingPolicy.Lot) {
+        throw new InvalidItemFieldError(
+          'shelfLifeDays is only allowed when trackingPolicy is LOT',
+        );
+      }
+      if (
+        !Number.isInteger(shelfLifeDays) ||
+        shelfLifeDays < 1 ||
+        shelfLifeDays > 3650
+      ) {
+        throw new InvalidItemFieldError(
+          'shelfLifeDays must be an integer between 1 and 3650',
+        );
+      }
+    }
+    const categoryId = (props.categoryId ?? '').trim() || null;
     return new Item({
       id: props.id,
       tenantId: props.tenantId,
@@ -79,6 +128,9 @@ export class Item {
       name,
       description: props.description?.trim() || null,
       defaultUomCode: uom,
+      categoryId,
+      trackingPolicy,
+      shelfLifeDays,
       isActive: true,
       createdAt: props.now,
       updatedAt: props.now,

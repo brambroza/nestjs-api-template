@@ -6,6 +6,7 @@ import {
   ProductionOrder,
   ProductionOrderStatus,
   Quantity,
+  Sku,
   TenantId,
   UserId,
   type ProductionOrderSnapshot,
@@ -48,6 +49,7 @@ export function toDomain(
     tenantId: TenantId.of(row.tenantId),
     createdBy: UserId.of(row.createdBy),
     status: toStatus(row.status),
+    productSku: row.productSku ? Sku.of(row.productSku) : null,
     orderedQuantity: Quantity.of(
       row.orderedQuantityValue,
       row.orderedQuantityUom,
@@ -89,6 +91,7 @@ export function insertShape(order: ProductionOrder): {
       tenantId: snap.tenantId,
       createdBy: snap.createdBy,
       status: snap.status,
+      productSku: snap.productSku,
       orderedQuantityValue: snap.orderedQuantity.value,
       orderedQuantityUom: snap.orderedQuantity.uom,
       totalAmountSatang: snap.totalAmount.amount,
@@ -122,6 +125,7 @@ export function updateShape(order: ProductionOrder): {
   return {
     data: {
       status: snap.status,
+      productSku: snap.productSku,
       orderedQuantityValue: snap.orderedQuantity.value,
       orderedQuantityUom: snap.orderedQuantity.uom,
       totalAmountSatang: snap.totalAmount.amount,

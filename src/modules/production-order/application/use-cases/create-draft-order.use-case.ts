@@ -1,6 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { Money, OrderId, ProductionOrder, Quantity } from '../../domain';
+import {
+  Money,
+  OrderId,
+  ProductionOrder,
+  Quantity,
+  type Sku,
+} from '../../domain';
 import { CLOCK, type Clock } from '../ports/clock.port';
 import {
   PRODUCTION_ORDER_REPOSITORY,
@@ -17,6 +23,8 @@ import {
 
 export interface CreateDraftOrderInput {
   readonly orderId: OrderId;
+  /** Finished good; when set, release resolves the master BOM for it. */
+  readonly productSku?: Sku | null;
   readonly orderedQuantity: Quantity;
   readonly totalAmount: Money;
 }
@@ -43,6 +51,7 @@ export class CreateDraftOrderUseCase {
         id: input.orderId,
         tenantId: this.context.getTenantId(),
         createdBy: this.context.getUserId(),
+        productSku: input.productSku ?? null,
         orderedQuantity: input.orderedQuantity,
         totalAmount: input.totalAmount,
         now: this.clock.now(),

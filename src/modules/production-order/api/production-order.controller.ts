@@ -18,7 +18,7 @@ import {
   CheckPolicies,
   PoliciesGuard,
 } from '../../../shared/auth/policies';
-import { Money, OrderId, Quantity } from '../domain';
+import { Money, OrderId, Quantity, Sku } from '../domain';
 import {
   ApproveOrderUseCase,
   CancelOrderUseCase,
@@ -71,6 +71,7 @@ export class ProductionOrderController {
     const orderId = OrderId.of(body.orderId ?? randomUUID());
     await this.createDraft.execute({
       orderId,
+      productSku: body.productSku ? Sku.of(body.productSku) : null,
       orderedQuantity: Quantity.of(
         BigInt(body.orderedQuantity.value),
         body.orderedQuantity.uom,

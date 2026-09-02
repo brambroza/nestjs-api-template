@@ -22,7 +22,7 @@ import {
 } from './policies/tolerance';
 import { ProductionOrderStatus } from './production-order-status';
 import { canTransition } from './state-machine';
-import type { OrderId, TenantId, UserId } from './value-objects';
+import type { OrderId, Sku, TenantId, UserId } from './value-objects';
 import type { Money } from './value-objects/money';
 import { Quantity } from './value-objects/quantity';
 
@@ -37,6 +37,8 @@ export interface ProductionOrderSnapshot {
   readonly tenantId: TenantId;
   readonly createdBy: UserId;
   readonly status: ProductionOrderStatus;
+  /** Finished good being produced; null on legacy orders (pre master BOM). */
+  readonly productSku: Sku | null;
   readonly orderedQuantity: Quantity;
   readonly totalAmount: Money;
   readonly firstApprover: UserId | null;
@@ -52,6 +54,7 @@ interface DraftInput {
   readonly id: OrderId;
   readonly tenantId: TenantId;
   readonly createdBy: UserId;
+  readonly productSku?: Sku | null;
   readonly orderedQuantity: Quantity;
   readonly totalAmount: Money;
   readonly now: Date;
@@ -77,6 +80,7 @@ export class ProductionOrder {
     readonly id: OrderId,
     readonly tenantId: TenantId,
     readonly createdBy: UserId,
+    readonly productSku: Sku | null,
     readonly orderedQuantity: Quantity,
     readonly totalAmount: Money,
     readonly createdAt: Date,
@@ -101,6 +105,7 @@ export class ProductionOrder {
       input.id,
       input.tenantId,
       input.createdBy,
+      input.productSku ?? null,
       input.orderedQuantity,
       input.totalAmount,
       input.now,
@@ -119,6 +124,7 @@ export class ProductionOrder {
       snapshot.id,
       snapshot.tenantId,
       snapshot.createdBy,
+      snapshot.productSku,
       snapshot.orderedQuantity,
       snapshot.totalAmount,
       snapshot.createdAt,
@@ -166,6 +172,7 @@ export class ProductionOrder {
       tenantId: this.tenantId,
       createdBy: this.createdBy,
       status: this._status,
+      productSku: this.productSku,
       orderedQuantity: this.orderedQuantity,
       totalAmount: this.totalAmount,
       firstApprover: this._firstApprover,
