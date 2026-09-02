@@ -44,8 +44,152 @@ model Tenant {
   calendars                      TenantCalendar[]
   progressReports                ProgressReport[]
   stock                          StockLevel[]
+  users                          User[]
+  roles                          Role[]
+  customers                      Customer[]
+  vendors                        Vendor[]
+  items                          Item[]
+  uomDefinitions                 UomDefinition[]
 
   @@map("tenant")
+}
+
+// ---------------------------------------------------------------------------
+// Users, roles, permissions
+// ---------------------------------------------------------------------------
+
+model User {
+  id             String   @id @db.NVarChar(36)
+  tenantId       String   @db.NVarChar(36)
+  email          String   @db.NVarChar(200)
+  passwordHash   String   @db.NVarChar(200)
+  displayName    String   @db.NVarChar(200)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.DateTime2
+  updatedAt      DateTime @updatedAt @db.DateTime2
+
+  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userRoles UserRole[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, email])
+  @@map("app_user")
+}
+
+/// Role stores its CASL rules as JSON so admins can edit them without
+/// a redeploy. Shape: `[ { action: "approve", subject: "ProductionOrderApprove" } ]`.
+/// `isSystem = true` marks built-in roles (admin/creator/approver/...)
+/// that the seed sets up; the UI should hide the delete button on those.
+model Role {
+  id             String   @id @db.NVarChar(36)
+  tenantId       String   @db.NVarChar(36)
+  name           String   @db.NVarChar(64)
+  permissionsJson String  @db.NVarChar(Max)
+  isSystem       Boolean  @default(false)
+  createdAt      DateTime @default(now()) @db.DateTime2
+  updatedAt      DateTime @updatedAt @db.DateTime2
+
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  userRoles UserRole[]
+
+  @@unique([tenantId, name])
+  @@map("app_role")
+}
+
+model UserRole {
+  userId    String   @db.NVarChar(36)
+  roleId    String   @db.NVarChar(36)
+  assignedAt DateTime @default(now()) @db.DateTime2
+
+  user User @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  role Role @relation(fields: [roleId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("app_user_role")
+}
+
+// ---------------------------------------------------------------------------
+// Partner master
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id                 String   @id @db.NVarChar(36)
+  tenantId           String   @db.NVarChar(36)
+  code               String   @db.NVarChar(32)
+  name               String   @db.NVarChar(200)
+  taxId              String?  @db.NVarChar(20)
+  creditLimitSatang  BigInt   @default(0)
+  paymentTermsDays   Int      @default(0)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now()) @db.DateTime2
+  updatedAt          DateTime @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, name])
+  @@map("md_customer")
+}
+
+model Vendor {
+  id                 String   @id @db.NVarChar(36)
+  tenantId           String   @db.NVarChar(36)
+  code               String   @db.NVarChar(32)
+  name               String   @db.NVarChar(200)
+  taxId              String?  @db.NVarChar(20)
+  paymentTermsDays   Int      @default(0)
+  isActive           Boolean  @default(true)
+  createdAt          DateTime @default(now()) @db.DateTime2
+  updatedAt          DateTime @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, name])
+  @@map("md_vendor")
+}
+
+// ---------------------------------------------------------------------------
+// Item master
+// ---------------------------------------------------------------------------
+
+model Item {
+  id             String   @id @db.NVarChar(36)
+  tenantId       String   @db.NVarChar(36)
+  sku            String   @db.NVarChar(64)
+  name           String   @db.NVarChar(200)
+  description    String?  @db.NVarChar(Max)
+  defaultUomCode String   @db.NVarChar(16)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.DateTime2
+  updatedAt      DateTime @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, sku])
+  @@index([tenantId, name])
+  @@map("md_item")
+}
+
+/// UoM per tenant. `baseUomCode` + `conversionRatio` express
+/// "1 <this uom> = <ratio> <baseUomCode>" so a box of 12 pcs is stored
+/// as (code=BOX, baseUomCode=PCS, conversionRatio=12).
+/// baseUomCode NULL means this row IS a base unit.
+model UomDefinition {
+  id              String  @id @db.NVarChar(36)
+  tenantId        String  @db.NVarChar(36)
+  code            String  @db.NVarChar(16)
+  name            String  @db.NVarChar(64)
+  baseUomCode     String? @db.NVarChar(16)
+  /// Numerator × 10^-6 for fractional ratios. Stored as bigint so
+  /// integer math survives (e.g. 1 kg = 1_000_000 g × 10^-6).
+  conversionRatio BigInt  @default(1)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, code])
+  @@map("md_uom")
 }
 
 model TenantCalendar {
