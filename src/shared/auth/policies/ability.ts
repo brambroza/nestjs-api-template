@@ -61,6 +61,8 @@ export type Subject =
   | 'ReorderRule'
   | 'SalesInvoice'
   | 'Receipt'
+  | 'VendorInvoice'
+  | 'PaymentVoucher'
   | 'all';
 
 export type AppSubjects = InferSubjects<Subject>;

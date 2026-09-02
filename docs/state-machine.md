@@ -233,3 +233,29 @@ number → exact-amount match → oldest due first.
 Reports: `/ar/aging` (0-30 / 31-60 / 61-90 / 90+ by days past due) and
 `/ar/customers/:id/statement` (running balance). `/sales-invoices/:id/promptpay`
 returns the EMVCo PromptPay payload for the open balance.
+
+---
+
+# Accounts Payable (EPIC-C.3)
+
+Code: `src/modules/finance/payable/domain/{vendor-invoice,payment,three-way-match}.ts`.
+
+## Vendor invoice
+
+DRAFT → OPEN (post; the three-way match against the PO line price and the
+received, un-invoiced quantity must be MATCHED, or the variance is explicitly
+accepted with `acceptVariance`) → PARTIALLY_PAID → PAID; DRAFT | OPEN → VOID.
+WHT-bearing lines carry the WHT tax code (rate, PND form, income type) but no
+tax is deducted until payment.
+
+## Payment voucher / batch
+
+Voucher DRAFT → POSTED → VOID. Posting settles the invoices by the gross
+allocation, withholds WHT on the paid share of each invoice's WHT base
+(pro-rated on partial payments), pays the net, and issues one WHT certificate
+(`WHT-yyyymm-nnnn`, PND3 / PND53 from the tax code) per voucher with WHT.
+Voiding reverses the settlements and voids the certificate. A batch groups
+draft vouchers (or generates one per vendor for everything due) and posts or
+voids them together; vouchers in a batch are paid through the batch.
+
+Reports: `/ap/aging` and `/ap/cash-forecast` (open payables by due week).

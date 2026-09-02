@@ -104,6 +104,13 @@ model Tenant {
   salesInvoiceLines              SalesInvoiceLine[]
   receipts                       Receipt[]
   receiptAllocations             ReceiptAllocation[]
+  vendorInvoices                 VendorInvoice[]
+  vendorInvoiceLines             VendorInvoiceLine[]
+  paymentVouchers                PaymentVoucher[]
+  paymentAllocations             PaymentAllocation[]
+  paymentBatches                 PaymentBatch[]
+  whtCertificates                WhtCertificate[]
+  whtCertificateLines            WhtCertificateLine[]
 
   @@map("tenant")
 }
@@ -1805,4 +1812,213 @@ model ReceiptAllocation {
   @@unique([receiptId, invoiceId])
   @@index([tenantId, invoiceId])
   @@map("fin_receipt_allocation")
+}
+
+// ---------------------------------------------------------------------------
+// Finance — Accounts Payable (EPIC-C.3)
+// ---------------------------------------------------------------------------
+
+/// status: DRAFT | OPEN | PARTIALLY_PAID | PAID | VOID. matchStatus (T-340):
+/// MATCHED | VARIANCE | UNMATCHED (no PO). Vendor identity frozen on the document.
+model VendorInvoice {
+  id                  String    @id @db.NVarChar(36)
+  tenantId            String    @db.NVarChar(36)
+  companyId           String    @db.NVarChar(36)
+  number              String    @db.NVarChar(24)
+  vendorInvoiceNumber String    @db.NVarChar(64)
+  vendorId            String    @db.NVarChar(36)
+  vendorName          String    @db.NVarChar(200)
+  vendorTaxId         String?   @db.NVarChar(20)
+  purchaseOrderId     String?   @db.NVarChar(36)
+  currency            String    @db.NVarChar(3)
+  invoiceDate         DateTime  @db.Date
+  dueDate             DateTime  @db.Date
+  paymentTermsDays    Int
+  status              String    @db.NVarChar(16)
+  matchStatus         String    @db.NVarChar(12)
+  matchIssues         String?   @db.NVarChar(Max)
+  subtotalMinor       BigInt
+  discountMinor       BigInt
+  taxMinor            BigInt
+  totalMinor          BigInt
+  settledMinor        BigInt    @default(0)
+  balanceMinor        BigInt
+  notes               String?   @db.NVarChar(Max)
+  version             Int       @default(0)
+  createdBy           String    @db.NVarChar(64)
+  postedAt            DateTime? @db.DateTime2
+  voidedAt            DateTime? @db.DateTime2
+  voidReason          String?   @db.NVarChar(500)
+  createdAt           DateTime  @db.DateTime2
+  updatedAt           DateTime  @updatedAt @db.DateTime2
+
+  tenant Tenant              @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lines  VendorInvoiceLine[]
+
+  @@unique([tenantId, number])
+  @@unique([tenantId, vendorId, vendorInvoiceNumber])
+  @@index([tenantId, vendorId, status])
+  @@index([tenantId, status, dueDate])
+  @@index([tenantId, purchaseOrderId])
+  @@map("fin_vendor_invoice")
+}
+
+model VendorInvoiceLine {
+  id                  String  @id @db.NVarChar(36)
+  tenantId            String  @db.NVarChar(36)
+  invoiceId           String  @db.NVarChar(36)
+  lineNo              Int
+  itemId              String  @db.NVarChar(36)
+  itemSku             String  @db.NVarChar(64)
+  description         String  @db.NVarChar(200)
+  uomCode             String  @db.NVarChar(16)
+  quantity            BigInt
+  unitPriceMinor      BigInt
+  priceSource         String  @db.NVarChar(12)
+  priceListId         String? @db.NVarChar(36)
+  discountBp          Int     @default(0)
+  discountMinor       BigInt
+  netMinor            BigInt
+  taxCodeId           String  @db.NVarChar(36)
+  taxCode             String  @db.NVarChar(16)
+  taxRateBp           Int
+  taxMinor            BigInt
+  totalMinor          BigInt
+  purchaseOrderLineId String? @db.NVarChar(36)
+  /// WHT that applies when this line is paid (services, rent, transport…); null = none.
+  whtTaxCodeId        String? @db.NVarChar(36)
+  whtTaxCode          String? @db.NVarChar(16)
+  whtRateBp           Int     @default(0)
+  whtPndForm          String? @db.NVarChar(8)
+  whtIncomeType       String? @db.NVarChar(100)
+
+  tenant  Tenant        @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  invoice VendorInvoice @relation(fields: [invoiceId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([invoiceId, lineNo])
+  @@index([tenantId, purchaseOrderLineId])
+  @@map("fin_vendor_invoice_line")
+}
+
+/// method: CASH | TRANSFER | CHEQUE. status: DRAFT | POSTED | VOID.
+/// grossMinor settles invoices; whtMinor is withheld; netPaidMinor leaves the bank.
+model PaymentVoucher {
+  id           String    @id @db.NVarChar(36)
+  tenantId     String    @db.NVarChar(36)
+  companyId    String    @db.NVarChar(36)
+  number       String    @db.NVarChar(24)
+  vendorId     String    @db.NVarChar(36)
+  batchId      String?   @db.NVarChar(36)
+  currency     String    @db.NVarChar(3)
+  paymentDate  DateTime  @db.Date
+  method       String    @db.NVarChar(12)
+  grossMinor   BigInt
+  whtMinor     BigInt    @default(0)
+  netPaidMinor BigInt
+  reference    String?   @db.NVarChar(100)
+  chequeNumber String?   @db.NVarChar(32)
+  chequeBank   String?   @db.NVarChar(100)
+  chequeDate   DateTime? @db.Date
+  notes        String?   @db.NVarChar(Max)
+  status       String    @db.NVarChar(12)
+  version      Int       @default(0)
+  createdBy    String    @db.NVarChar(64)
+  postedAt     DateTime? @db.DateTime2
+  voidedAt     DateTime? @db.DateTime2
+  createdAt    DateTime  @db.DateTime2
+  updatedAt    DateTime  @updatedAt @db.DateTime2
+
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  allocations PaymentAllocation[]
+
+  @@unique([tenantId, number])
+  @@index([tenantId, vendorId, status])
+  @@index([tenantId, batchId])
+  @@map("fin_payment_voucher")
+}
+
+model PaymentAllocation {
+  id          String @id @db.NVarChar(36)
+  tenantId    String @db.NVarChar(36)
+  voucherId   String @db.NVarChar(36)
+  invoiceId   String @db.NVarChar(36)
+  amountMinor BigInt
+  whtMinor    BigInt @default(0)
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  voucher PaymentVoucher @relation(fields: [voucherId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([voucherId, invoiceId])
+  @@index([tenantId, invoiceId])
+  @@map("fin_payment_allocation")
+}
+
+/// T-344: several vouchers paid together. status: DRAFT | POSTED | VOID.
+model PaymentBatch {
+  id            String    @id @db.NVarChar(36)
+  tenantId      String    @db.NVarChar(36)
+  companyId     String    @db.NVarChar(36)
+  number        String    @db.NVarChar(24)
+  paymentDate   DateTime  @db.Date
+  method        String    @db.NVarChar(12)
+  currency      String    @db.NVarChar(3)
+  status        String    @db.NVarChar(12)
+  voucherCount  Int       @default(0)
+  totalNetMinor BigInt    @default(0)
+  totalWhtMinor BigInt    @default(0)
+  version       Int       @default(0)
+  createdBy     String    @db.NVarChar(64)
+  postedAt      DateTime? @db.DateTime2
+  createdAt     DateTime  @db.DateTime2
+  updatedAt     DateTime  @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status])
+  @@map("fin_payment_batch")
+}
+
+/// T-342: หนังสือรับรองการหักภาษี ณ ที่จ่าย, one per posted voucher with WHT.
+model WhtCertificate {
+  id            String   @id @db.NVarChar(36)
+  tenantId      String   @db.NVarChar(36)
+  companyId     String   @db.NVarChar(36)
+  voucherId     String   @db.NVarChar(36)
+  number        String   @db.NVarChar(24)
+  pndForm       String   @db.NVarChar(8)
+  vendorId      String   @db.NVarChar(36)
+  vendorName    String   @db.NVarChar(200)
+  vendorTaxId   String?  @db.NVarChar(20)
+  paymentDate   DateTime @db.Date
+  totalBaseMinor BigInt
+  totalTaxMinor BigInt
+  isVoid        Boolean  @default(false)
+  createdAt     DateTime @db.DateTime2
+
+  tenant Tenant               @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lines  WhtCertificateLine[]
+
+  @@unique([tenantId, number])
+  @@unique([tenantId, voucherId])
+  @@index([tenantId, vendorId, paymentDate])
+  @@map("fin_wht_certificate")
+}
+
+model WhtCertificateLine {
+  id            String @id @db.NVarChar(36)
+  tenantId      String @db.NVarChar(36)
+  certificateId String @db.NVarChar(36)
+  lineNo        Int
+  taxCode       String @db.NVarChar(16)
+  incomeType    String @db.NVarChar(100)
+  rateBp        Int
+  baseMinor     BigInt
+  taxMinor      BigInt
+
+  tenant      Tenant         @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  certificate WhtCertificate @relation(fields: [certificateId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([certificateId, lineNo])
+  @@map("fin_wht_certificate_line")
 }

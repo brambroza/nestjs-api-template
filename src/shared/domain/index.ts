@@ -32,3 +32,12 @@ export {
   type DocumentLineSnapshot,
   type DocumentTotals,
 } from './document-line';
+export {
+  AGING_BUCKETS,
+  AgingBucket,
+  agingBucket,
+  buildAging,
+  daysOverdue,
+  type AgingInput,
+  type AgingRow,
+} from './aging';
