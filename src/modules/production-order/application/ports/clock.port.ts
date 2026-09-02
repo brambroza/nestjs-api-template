@@ -1,6 +1,3 @@
-export const CLOCK = Symbol('CLOCK');
-
-/** Time source injected everywhere the domain would otherwise call `new Date()`. */
-export interface Clock {
-  now(): Date;
-}
+// Re-exported from shared so both production-order and notification
+// (and future modules) inject the same clock. See src/shared/clock/.
+export { CLOCK, type Clock } from '../../../../shared/clock';
