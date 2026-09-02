@@ -88,6 +88,14 @@ export const EnvSchema = z.object({
   /** Global throttler: N requests per TTL_MS per client. */
   RATE_LIMIT_TTL_MS: intFromString(60_000),
   RATE_LIMIT_REQUESTS: intFromString(120),
+
+  /**
+   * Bank of Thailand open API (apiportal.bot.or.th). The daily FX sync
+   * runs only when a client id is present; without it rates are entered
+   * manually and the app boots normally.
+   */
+  BOT_API_CLIENT_ID: z.string().trim().default(''),
+  BOT_API_BASE_URL: nonEmpty.default('https://apigw1.bot.or.th/bot/public'),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

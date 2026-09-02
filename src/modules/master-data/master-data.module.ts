@@ -4,6 +4,7 @@ import { BomModule } from './bom/bom.module';
 import { BranchModule } from './branch/branch.module';
 import { CompanyModule } from './company/company.module';
 import { CustomerModule } from './customer/customer.module';
+import { FinanceModule } from './finance/finance.module';
 import { ItemCategoryModule } from './item-category/item-category.module';
 import { ItemModule } from './item/item.module';
 import { PartnerModule } from './partner/partner.module';
@@ -37,6 +38,7 @@ import { WarehouseModule } from './warehouse/warehouse.module';
     PartnerModule,
     PriceListModule,
     BomModule,
+    FinanceModule,
   ],
   exports: [
     CompanyModule,
@@ -50,6 +52,7 @@ import { WarehouseModule } from './warehouse/warehouse.module';
     PartnerModule,
     PriceListModule,
     BomModule,
+    FinanceModule,
   ],
 })
 export class MasterDataModule {}

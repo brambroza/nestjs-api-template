@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import appConfig from './app.config';
 import authConfig from './auth.config';
 import databaseConfig from './database.config';
+import financeConfig from './finance.config';
 import lineConfig from './line.config';
 import outboxConfig from './outbox.config';
 import redisConfig from './redis.config';
@@ -25,6 +26,7 @@ import { validateEnv } from './env.schema';
         lineConfig,
         outboxConfig,
         tenantDefaultsConfig,
+        financeConfig,
       ],
     }),
   ],

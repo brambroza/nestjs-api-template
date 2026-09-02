@@ -41,6 +41,11 @@ export type Subject =
   | 'ItemCategory'
   | 'PriceList'
   | 'Bom'
+  | 'Currency'
+  | 'FxRate'
+  | 'TaxCode'
+  | 'Account'
+  | 'FiscalYear'
   | 'all';
 
 export type AppSubjects = InferSubjects<Subject>;

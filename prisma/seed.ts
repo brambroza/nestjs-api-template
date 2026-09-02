@@ -81,6 +81,26 @@ async function main(): Promise<void> {
           { action: 'read', subject: 'Bom' },
           { action: 'create', subject: 'Bom' },
           { action: 'update', subject: 'Bom' },
+          { action: 'read', subject: 'Currency' },
+          { action: 'read', subject: 'FxRate' },
+          { action: 'read', subject: 'TaxCode' },
+          { action: 'read', subject: 'Account' },
+          { action: 'read', subject: 'FiscalYear' },
+        ],
+      },
+      {
+        // Finance administrator: owns currencies, FX, tax codes, the
+        // chart of accounts and period locks (EPIC-A.4).
+        id: 'role-finance-admin',
+        name: 'finance-admin',
+        rules: [
+          { action: 'read', subject: 'Company' },
+          { action: 'read', subject: 'Item' },
+          { action: 'manage', subject: 'Currency' },
+          { action: 'manage', subject: 'FxRate' },
+          { action: 'manage', subject: 'TaxCode' },
+          { action: 'manage', subject: 'Account' },
+          { action: 'manage', subject: 'FiscalYear' },
         ],
       },
       {
@@ -478,6 +498,143 @@ async function main(): Promise<void> {
       },
     });
 
+    // ---- Financial configuration (EPIC-A.4) ---------------------------
+    const currenciesSeed = [
+      { id: 'cur-thb', code: 'THB', name: 'Thai Baht', minorUnits: 2 },
+      { id: 'cur-usd', code: 'USD', name: 'US Dollar', minorUnits: 2 },
+      { id: 'cur-jpy', code: 'JPY', name: 'Japanese Yen', minorUnits: 0 },
+    ];
+    for (const c of currenciesSeed) {
+      await prisma.currency.upsert({
+        where: { tenantId_code: { tenantId, code: c.code } },
+        update: { name: c.name, minorUnits: c.minorUnits },
+        create: { ...c, tenantId },
+      });
+    }
+    // Manual reference rates (1 quote = rateScaled/1e6 THB). The BOT cron
+    // fills subsequent days when BOT_API_CLIENT_ID is configured.
+    const fxSeed = [
+      { id: 'fx-usd-20260901', quoteCurrency: 'USD', rateScaled: 33_123_400n },
+      { id: 'fx-jpy-20260901', quoteCurrency: 'JPY', rateScaled: 225_000n },
+    ];
+    for (const r of fxSeed) {
+      const rateDate = new Date('2026-09-01T00:00:00.000Z');
+      await prisma.fxRate.upsert({
+        where: {
+          tenantId_baseCurrency_quoteCurrency_rateDate: {
+            tenantId,
+            baseCurrency: 'THB',
+            quoteCurrency: r.quoteCurrency,
+            rateDate,
+          },
+        },
+        update: { rateScaled: r.rateScaled },
+        create: {
+          id: r.id,
+          tenantId,
+          baseCurrency: 'THB',
+          quoteCurrency: r.quoteCurrency,
+          rateDate,
+          rateScaled: r.rateScaled,
+          source: 'MANUAL',
+          fetchedAt: new Date('2026-09-01T11:30:00.000Z'),
+          createdBy: 'user-admin',
+        },
+      });
+    }
+
+    // Thai tax codes: VAT 7 % default, zero-rated, exempt; WHT 1/3/5 %.
+    const taxSeed = [
+      { id: 'tax-vat7', code: 'VAT7', name: 'VAT 7%', kind: 'VAT', rateBasisPoints: 700n, vatTreatment: 'STANDARD', pndForm: null as string | null, whtIncomeType: null as string | null, isDefault: true },
+      { id: 'tax-vat0', code: 'VAT0', name: 'VAT 0% (export)', kind: 'VAT', rateBasisPoints: 0n, vatTreatment: 'ZERO_RATED', pndForm: null as string | null, whtIncomeType: null as string | null, isDefault: false },
+      { id: 'tax-vat-ex', code: 'VAT-EX', name: 'VAT exempt (ยกเว้น)', kind: 'VAT', rateBasisPoints: 0n, vatTreatment: 'EXEMPT', pndForm: null as string | null, whtIncomeType: null as string | null, isDefault: false },
+      { id: 'tax-wht1', code: 'WHT1', name: 'WHT 1% transport', kind: 'WHT', rateBasisPoints: 100n, vatTreatment: null as string | null, pndForm: 'PND53' as string | null, whtIncomeType: 'ค่าขนส่ง' as string | null, isDefault: false },
+      { id: 'tax-wht3', code: 'WHT3', name: 'WHT 3% services', kind: 'WHT', rateBasisPoints: 300n, vatTreatment: null as string | null, pndForm: 'PND53' as string | null, whtIncomeType: 'ค่าบริการ' as string | null, isDefault: true },
+      { id: 'tax-wht5', code: 'WHT5', name: 'WHT 5% rent', kind: 'WHT', rateBasisPoints: 500n, vatTreatment: null as string | null, pndForm: 'PND53' as string | null, whtIncomeType: 'ค่าเช่า' as string | null, isDefault: false },
+    ];
+    for (const t of taxSeed) {
+      await prisma.taxCode.upsert({
+        where: { tenantId_code: { tenantId, code: t.code } },
+        update: { rateBasisPoints: t.rateBasisPoints, isDefault: t.isDefault },
+        create: { ...t, tenantId },
+      });
+    }
+
+    // Minimal Thai SME chart of accounts. Headers are non-postable.
+    const coa: Array<{ id: string; code: string; name: string; nameTh: string; type: string; parent: string | null; postable: boolean }> = [
+      { id: 'acc-1000', code: '1000', name: 'Assets', nameTh: 'สินทรัพย์', type: 'ASSET', parent: null, postable: false },
+      { id: 'acc-1100', code: '1100', name: 'Cash and bank', nameTh: 'เงินสดและเงินฝากธนาคาร', type: 'ASSET', parent: 'acc-1000', postable: true },
+      { id: 'acc-1200', code: '1200', name: 'Accounts receivable', nameTh: 'ลูกหนี้การค้า', type: 'ASSET', parent: 'acc-1000', postable: true },
+      { id: 'acc-1300', code: '1300', name: 'Inventory', nameTh: 'สินค้าคงเหลือ', type: 'ASSET', parent: 'acc-1000', postable: true },
+      { id: 'acc-1400', code: '1400', name: 'Input VAT', nameTh: 'ภาษีซื้อ', type: 'ASSET', parent: 'acc-1000', postable: true },
+      { id: 'acc-2000', code: '2000', name: 'Liabilities', nameTh: 'หนี้สิน', type: 'LIABILITY', parent: null, postable: false },
+      { id: 'acc-2100', code: '2100', name: 'Accounts payable', nameTh: 'เจ้าหนี้การค้า', type: 'LIABILITY', parent: 'acc-2000', postable: true },
+      { id: 'acc-2200', code: '2200', name: 'Output VAT', nameTh: 'ภาษีขาย', type: 'LIABILITY', parent: 'acc-2000', postable: true },
+      { id: 'acc-2300', code: '2300', name: 'Withholding tax payable', nameTh: 'ภาษีหัก ณ ที่จ่ายค้างจ่าย', type: 'LIABILITY', parent: 'acc-2000', postable: true },
+      { id: 'acc-3000', code: '3000', name: 'Equity', nameTh: 'ส่วนของผู้ถือหุ้น', type: 'EQUITY', parent: null, postable: false },
+      { id: 'acc-3100', code: '3100', name: 'Share capital', nameTh: 'ทุนเรือนหุ้น', type: 'EQUITY', parent: 'acc-3000', postable: true },
+      { id: 'acc-3200', code: '3200', name: 'Retained earnings', nameTh: 'กำไรสะสม', type: 'EQUITY', parent: 'acc-3000', postable: true },
+      { id: 'acc-4000', code: '4000', name: 'Revenue', nameTh: 'รายได้', type: 'REVENUE', parent: null, postable: false },
+      { id: 'acc-4100', code: '4100', name: 'Sales', nameTh: 'รายได้จากการขาย', type: 'REVENUE', parent: 'acc-4000', postable: true },
+      { id: 'acc-5000', code: '5000', name: 'Expenses', nameTh: 'ค่าใช้จ่าย', type: 'EXPENSE', parent: null, postable: false },
+      { id: 'acc-5100', code: '5100', name: 'Cost of goods sold', nameTh: 'ต้นทุนขาย', type: 'EXPENSE', parent: 'acc-5000', postable: true },
+      { id: 'acc-5200', code: '5200', name: 'Salaries', nameTh: 'เงินเดือน', type: 'EXPENSE', parent: 'acc-5000', postable: true },
+      { id: 'acc-5300', code: '5300', name: 'Rent', nameTh: 'ค่าเช่า', type: 'EXPENSE', parent: 'acc-5000', postable: true },
+    ];
+    for (const a of coa) {
+      const path = a.parent ? `/${a.parent}/${a.id}/` : `/${a.id}/`;
+      await prisma.account.upsert({
+        where: { tenantId_code: { tenantId, code: a.code } },
+        update: { name: a.name, nameTh: a.nameTh, isPostable: a.postable },
+        create: {
+          id: a.id,
+          tenantId,
+          code: a.code,
+          name: a.name,
+          nameTh: a.nameTh,
+          type: a.type,
+          parentId: a.parent,
+          path,
+          depth: a.parent ? 1 : 0,
+          isPostable: a.postable,
+        },
+      });
+    }
+
+    // Fiscal year 2026 for the demo company: 12 monthly periods,
+    // Jan–Jun locked at month-end to show the posting gate in action.
+    await prisma.fiscalYear.upsert({
+      where: { id: 'fy-2026' },
+      update: {},
+      create: {
+        id: 'fy-2026',
+        tenantId,
+        companyId: 'co-demo',
+        name: 'FY2026',
+        startDate: new Date('2026-01-01T00:00:00.000Z'),
+        endDate: new Date('2026-12-31T00:00:00.000Z'),
+        status: 'OPEN',
+        periods: {
+          create: Array.from({ length: 12 }, (_, i) => {
+            const start = new Date(Date.UTC(2026, i, 1));
+            const end = new Date(Date.UTC(2026, i + 1, 0));
+            const locked = i < 6;
+            return {
+              id: `fy-2026-p${String(i + 1).padStart(2, '0')}`,
+              tenantId,
+              periodNo: i + 1,
+              startDate: start,
+              endDate: end,
+              status: locked ? 'LOCKED' : 'OPEN',
+              lockedAt: locked ? new Date(Date.UTC(2026, i + 1, 5)) : null,
+              lockedBy: locked ? 'user-admin' : null,
+              lockReason: locked ? 'month-end close' : null,
+            };
+          }),
+        },
+      },
+    });
+
     // Production-order demo
     await prisma.productionOrder.upsert({
       where: { id: orderId },
@@ -530,6 +687,9 @@ async function main(): Promise<void> {
     Items FIN-A (SERIAL, FG) + RAW-A (LOT 365d, RM), Customer CUST-001, Vendor VEND-001
   BOM: FIN-A v1 active (2 KG RAW-A/unit, 5% scrap, 95% yield, 10 KG pack)
   Price lists: STD-2026 (FIN-A 1,500.00 / 10+ 1,400.00), VIP-CUST-001 (1,450.00)
+  Finance: THB/USD/JPY + rates 2026-09-01 (USD 33.1234, JPY 0.2250),
+    tax VAT7* VAT0 VAT-EX WHT1 WHT3* WHT5 (* = default), 18-account Thai SME chart,
+    FY2026 for co-demo (periods 1-6 LOCKED, 7-12 OPEN)
   Partner: CUST-001 has 1 primary contact, 1 default BILLING address, 1 MARKETING consent
   Order: ${orderId} (DRAFT, productSku FIN-A -> master BOM) + 500 KG RAW-A stock`);
   } finally {

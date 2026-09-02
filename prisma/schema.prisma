@@ -62,8 +62,173 @@ model Tenant {
   priceListLines                 PriceListLine[]
   boms                           Bom[]
   bomComponents                  BomComponent[]
+  currencies                     Currency[]
+  fxRates                        FxRate[]
+  taxCodes                       TaxCode[]
+  itemTaxOverrides               ItemTaxOverride[]
+  accounts                       Account[]
+  fiscalYears                    FiscalYear[]
+  fiscalPeriods                  FiscalPeriod[]
 
   @@map("tenant")
+}
+
+// ---------------------------------------------------------------------------
+// Financial configuration (EPIC-A.4)
+// ---------------------------------------------------------------------------
+
+model Currency {
+  id         String   @id @db.NVarChar(36)
+  tenantId   String   @db.NVarChar(36)
+  /// ISO 4217 alpha code.
+  code       String   @db.NVarChar(3)
+  name       String   @db.NVarChar(64)
+  /// Decimal places of the minor unit: THB 2, JPY 0, KWD 3.
+  minorUnits Int      @default(2)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now()) @db.DateTime2
+  updatedAt  DateTime @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, code])
+  @@map("md_currency")
+}
+
+/// "1 unit of quoteCurrency = rateScaled / 1e6 units of baseCurrency".
+/// BOT publishes THB per unit of foreign currency, so base=THB, quote=USD,
+/// rateScaled=33123400 means 1 USD = 33.1234 THB. bigint, never float (R5).
+model FxRate {
+  id            String   @id @db.NVarChar(36)
+  tenantId      String   @db.NVarChar(36)
+  baseCurrency  String   @db.NVarChar(3)
+  quoteCurrency String   @db.NVarChar(3)
+  rateDate      DateTime @db.Date
+  rateScaled    BigInt
+  /// BOT | MANUAL
+  source        String   @db.NVarChar(16)
+  fetchedAt     DateTime @db.DateTime2
+  createdBy     String?  @db.NVarChar(64)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, baseCurrency, quoteCurrency, rateDate])
+  @@index([tenantId, quoteCurrency, rateDate])
+  @@map("fin_fx_rate")
+}
+
+/// VAT: vatTreatment STANDARD (7%) | ZERO_RATED (0%, export) | EXEMPT
+/// (ยกเว้น, no VAT and no input credit). WHT: rate + the PND form the
+/// certificate is filed under (PND3 individuals, PND53 juristic).
+model TaxCode {
+  id              String   @id @db.NVarChar(36)
+  tenantId        String   @db.NVarChar(36)
+  code            String   @db.NVarChar(16)
+  name            String   @db.NVarChar(100)
+  /// VAT | WHT
+  kind            String   @db.NVarChar(8)
+  rateBasisPoints BigInt
+  vatTreatment    String?  @db.NVarChar(12)
+  pndForm         String?  @db.NVarChar(8)
+  whtIncomeType   String?  @db.NVarChar(100)
+  isDefault       Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now()) @db.DateTime2
+  updatedAt       DateTime @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, kind, isActive])
+  @@map("fin_tax_code")
+}
+
+/// "This item uses tax code X for kind K instead of the tenant default"
+/// — how exempt / zero-rated items are expressed.
+model ItemTaxOverride {
+  id        String   @id @db.NVarChar(36)
+  tenantId  String   @db.NVarChar(36)
+  itemId    String   @db.NVarChar(36)
+  kind      String   @db.NVarChar(8)
+  taxCodeId String   @db.NVarChar(36)
+  reason    String?  @db.NVarChar(200)
+  createdAt DateTime @default(now()) @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, itemId, kind])
+  @@map("fin_item_tax_override")
+}
+
+/// Chart of accounts (ผังบัญชี). Tree like item categories; type is
+/// inherited down the tree; only postable leaves receive journal lines.
+model Account {
+  id         String   @id @db.NVarChar(36)
+  tenantId   String   @db.NVarChar(36)
+  code       String   @db.NVarChar(16)
+  name       String   @db.NVarChar(200)
+  nameTh     String?  @db.NVarChar(200)
+  /// ASSET | LIABILITY | EQUITY | REVENUE | EXPENSE
+  type       String   @db.NVarChar(12)
+  parentId   String?  @db.NVarChar(36)
+  path       String   @db.NVarChar(2000)
+  depth      Int
+  isPostable Boolean  @default(true)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now()) @db.DateTime2
+  updatedAt  DateTime @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, code])
+  @@index([tenantId, parentId])
+  @@index([tenantId, type])
+  @@map("fin_account")
+}
+
+/// Per legal entity. 12 monthly periods generated on create.
+model FiscalYear {
+  id        String    @id @db.NVarChar(36)
+  tenantId  String    @db.NVarChar(36)
+  companyId String    @db.NVarChar(36)
+  name      String    @db.NVarChar(32)
+  startDate DateTime  @db.Date
+  endDate   DateTime  @db.Date
+  /// OPEN | CLOSED
+  status    String    @db.NVarChar(8)
+  closedAt  DateTime? @db.DateTime2
+  closedBy  String?   @db.NVarChar(64)
+  createdAt DateTime  @default(now()) @db.DateTime2
+  updatedAt DateTime  @updatedAt @db.DateTime2
+
+  tenant  Tenant         @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  periods FiscalPeriod[]
+
+  @@unique([tenantId, companyId, name])
+  @@index([tenantId, companyId, startDate])
+  @@map("fin_fiscal_year")
+}
+
+model FiscalPeriod {
+  id           String    @id @db.NVarChar(36)
+  tenantId     String    @db.NVarChar(36)
+  fiscalYearId String    @db.NVarChar(36)
+  periodNo     Int
+  startDate    DateTime  @db.Date
+  endDate      DateTime  @db.Date
+  /// OPEN | LOCKED | CLOSED
+  status       String    @db.NVarChar(8)
+  lockedAt     DateTime? @db.DateTime2
+  lockedBy     String?   @db.NVarChar(64)
+  lockReason   String?   @db.NVarChar(200)
+  updatedAt    DateTime  @updatedAt @db.DateTime2
+
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  fiscalYear FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([fiscalYearId, periodNo])
+  @@index([tenantId, startDate])
+  @@map("fin_fiscal_period")
 }
 
 // ---------------------------------------------------------------------------

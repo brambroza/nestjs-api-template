@@ -112,6 +112,37 @@ export const MESSAGES_TH: Readonly<Record<string, string>> = {
     'ไฟล์นำเข้ามีจำนวนแถวเกินกำหนด (สูงสุด 10,000 แถวต่อไฟล์)',
   'MASTER_DATA.IMPORT_FILE_INVALID':
     'ไฟล์นำเข้าไม่ถูกต้อง หรือขาดคอลัมน์ที่จำเป็น',
+
+  'DOMAIN.INVALID_DATE': 'รูปแบบวันที่ไม่ถูกต้อง (ต้องเป็น YYYY-MM-DD)',
+  'FINANCE.CURRENCY_NOT_FOUND': 'ไม่พบสกุลเงินที่ระบุในระบบ',
+  'FINANCE.DUPLICATE_CURRENCY_CODE': 'รหัสสกุลเงินนี้ถูกใช้งานแล้ว',
+  'FINANCE.INVALID_CURRENCY_FIELD': 'ข้อมูลสกุลเงินไม่ถูกต้อง',
+  'FINANCE.FX_RATE_NOT_FOUND':
+    'ไม่พบอัตราแลกเปลี่ยนสำหรับวันที่และสกุลเงินที่ระบุ',
+  'FINANCE.INVALID_FX_RATE': 'ข้อมูลอัตราแลกเปลี่ยนไม่ถูกต้อง',
+  'FINANCE.FX_SOURCE_UNAVAILABLE':
+    'ไม่สามารถดึงอัตราแลกเปลี่ยนจากธนาคารแห่งประเทศไทยได้ในขณะนี้',
+  'FINANCE.TAX_CODE_NOT_FOUND': 'ไม่พบรหัสภาษีที่ระบุ',
+  'FINANCE.DUPLICATE_TAX_CODE': 'รหัสภาษีนี้ถูกใช้งานแล้ว',
+  'FINANCE.DEFAULT_TAX_CODE_EXISTS':
+    'มีรหัสภาษีค่าเริ่มต้นของประเภทนี้อยู่แล้ว กำหนดได้เพียงรหัสเดียว',
+  'FINANCE.NO_TAX_CODE_FOR_KIND':
+    'ยังไม่ได้กำหนดรหัสภาษีค่าเริ่มต้นของประเภทนี้',
+  'FINANCE.INVALID_TAX_CODE_FIELD': 'ข้อมูลรหัสภาษีไม่ถูกต้อง',
+  'FINANCE.ACCOUNT_NOT_FOUND': 'ไม่พบบัญชีในผังบัญชี',
+  'FINANCE.DUPLICATE_ACCOUNT_CODE': 'รหัสบัญชีนี้ถูกใช้งานแล้ว',
+  'FINANCE.INVALID_ACCOUNT_FIELD': 'ข้อมูลผังบัญชีไม่ถูกต้อง',
+  'FINANCE.FISCAL_YEAR_NOT_FOUND': 'ไม่พบปีบัญชีที่ระบุ',
+  'FINANCE.DUPLICATE_FISCAL_YEAR': 'ชื่อปีบัญชีนี้ถูกใช้งานแล้วสำหรับบริษัทนี้',
+  'FINANCE.FISCAL_YEAR_OVERLAP': 'ช่วงเวลาของปีบัญชีทับซ้อนกับปีบัญชีที่มีอยู่',
+  'FINANCE.FISCAL_YEAR_COMPANY_INVALID': 'บริษัทที่ระบุไม่มีอยู่หรือถูกระงับ',
+  'FINANCE.INVALID_FISCAL_YEAR_FIELD': 'ข้อมูลปีบัญชีไม่ถูกต้อง',
+  'FINANCE.FISCAL_PERIOD_NOT_FOUND': 'ไม่พบงวดบัญชีที่ระบุ',
+  'FINANCE.ILLEGAL_PERIOD_TRANSITION':
+    'ไม่สามารถเปลี่ยนสถานะงวดบัญชีจากสถานะปัจจุบันได้',
+  'FINANCE.FISCAL_YEAR_NOT_READY_TO_CLOSE':
+    'ต้องล็อกทุกงวดบัญชีก่อนจึงจะปิดปีบัญชีได้',
+  'FINANCE.FISCAL_YEAR_CLOSED': 'ปีบัญชีนี้ปิดแล้ว ไม่สามารถแก้ไขได้',
 };
 
 const FALLBACK_TH = 'เกิดข้อผิดพลาดที่ไม่คาดคิด';

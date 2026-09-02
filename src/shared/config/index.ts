@@ -2,6 +2,7 @@ export { AppConfigModule } from './config.module';
 export type { AppConfig } from './app.config';
 export type { AuthConfig } from './auth.config';
 export type { DatabaseConfig } from './database.config';
+export type { FinanceConfig } from './finance.config';
 export type { LineConfig } from './line.config';
 export type { OutboxConfig } from './outbox.config';
 export type { RedisConfig } from './redis.config';
