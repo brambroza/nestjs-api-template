@@ -4,13 +4,13 @@ import { Inject, Injectable } from '@nestjs/common';
 
 import { CLOCK, type Clock } from '../../../../shared/clock';
 import { TENANT_CONTEXT, type TenantContext } from '../../../../shared/tenant';
+import type { ThaiAddressInput } from '../../../../shared/domain';
 import {
   Branch,
   BranchCompanyInvalidError,
   DuplicateBranchCodeError,
   DuplicateBranchNumberError,
   HEAD_OFFICE_BRANCH_NUMBER,
-  type BranchAddress,
 } from '../domain';
 
 import {
@@ -27,7 +27,7 @@ export interface CreateBranchInput {
   readonly code: string;
   readonly name: string;
   readonly branchNumber?: string | null;
-  readonly address?: Partial<BranchAddress> | null;
+  readonly address?: ThaiAddressInput | null;
 }
 
 @Injectable()

@@ -53,8 +53,126 @@ model Tenant {
   companies                      Company[]
   branches                       Branch[]
   warehouses                     Warehouse[]
+  partnerContacts                PartnerContact[]
+  partnerAddresses               PartnerAddress[]
+  pdpaConsents                   PdpaConsent[]
+  pdpaRequests                   PdpaRequest[]
 
   @@map("tenant")
+}
+
+// ---------------------------------------------------------------------------
+// Partner sub-resources — shared by Customer and Vendor.
+//
+// (partnerType, partnerId) is a polymorphic reference: partnerType is
+// "CUSTOMER" or "VENDOR" and partnerId points at md_customer.id or
+// md_vendor.id. MSSQL cannot express a polymorphic FK, so existence is
+// enforced at the application layer via PartnerLookup (same pattern as
+// branch -> company). Every query is prefixed by tenantId (R10).
+// ---------------------------------------------------------------------------
+
+model PartnerContact {
+  id           String    @id @db.NVarChar(36)
+  tenantId     String    @db.NVarChar(36)
+  partnerType  String    @db.NVarChar(16)
+  partnerId    String    @db.NVarChar(36)
+  fullName     String    @db.NVarChar(200)
+  position     String?   @db.NVarChar(100)
+  email        String?   @db.NVarChar(200)
+  phone        String?   @db.NVarChar(30)
+  isPrimary    Boolean   @default(false)
+  isActive     Boolean   @default(true)
+  /// Set by a fulfilled PDPA erasure request. Personal fields are
+  /// overwritten at the same time; the row is kept so document history
+  /// that references contactId still resolves.
+  erasedAt     DateTime? @db.DateTime2
+  createdAt    DateTime  @default(now()) @db.DateTime2
+  updatedAt    DateTime  @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([tenantId, partnerType, partnerId])
+  @@map("md_partner_contact")
+}
+
+model PartnerAddress {
+  id           String   @id @db.NVarChar(36)
+  tenantId     String   @db.NVarChar(36)
+  partnerType  String   @db.NVarChar(16)
+  partnerId    String   @db.NVarChar(36)
+  /// BILLING | SHIPPING
+  addressType  String   @db.NVarChar(16)
+  label        String?  @db.NVarChar(100)
+  line1        String   @db.NVarChar(200)
+  line2        String?  @db.NVarChar(200)
+  subDistrict  String?  @db.NVarChar(100)
+  district     String?  @db.NVarChar(100)
+  province     String?  @db.NVarChar(100)
+  postalCode   String?  @db.NVarChar(10)
+  countryCode  String   @default("TH") @db.NVarChar(2)
+  /// For BILLING addresses of a Thai juristic partner: the partner's
+  /// Revenue Department branch number that must print on the tax
+  /// invoice ("สาขาที่ NNNNN", 00000 = head office).
+  branchNumber String?  @db.NVarChar(5)
+  isDefault    Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now()) @db.DateTime2
+  updatedAt    DateTime @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([tenantId, partnerType, partnerId])
+  @@map("md_partner_address")
+}
+
+/// Append-only consent log (PDPA §19). Current state per purpose is the
+/// latest row; never update or delete rows — the history is the
+/// evidence the regulator asks for.
+model PdpaConsent {
+  id           String   @id @db.NVarChar(36)
+  tenantId     String   @db.NVarChar(36)
+  partnerType  String   @db.NVarChar(16)
+  partnerId    String   @db.NVarChar(36)
+  /// Optional: the specific contact person who consented.
+  contactId    String?  @db.NVarChar(36)
+  /// MARKETING | ANALYTICS | THIRD_PARTY_SHARING
+  purpose      String   @db.NVarChar(32)
+  /// GRANT | WITHDRAW
+  action       String   @db.NVarChar(16)
+  /// WEB_FORM | PAPER_FORM | VERBAL | EMAIL | API
+  source       String   @db.NVarChar(16)
+  evidenceRef  String?  @db.NVarChar(200)
+  note         String?  @db.NVarChar(500)
+  recordedBy   String   @db.NVarChar(64)
+  recordedAt   DateTime @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([tenantId, partnerType, partnerId, recordedAt])
+  @@map("pdpa_consent")
+}
+
+/// Data-subject request (PDPA §30 access/portability, §33 erasure).
+model PdpaRequest {
+  id           String    @id @db.NVarChar(36)
+  tenantId     String    @db.NVarChar(36)
+  partnerType  String    @db.NVarChar(16)
+  partnerId    String    @db.NVarChar(36)
+  /// EXPORT | ERASURE
+  requestType  String    @db.NVarChar(16)
+  /// PENDING | COMPLETED | REJECTED
+  status       String    @db.NVarChar(16)
+  reason       String?   @db.NVarChar(500)
+  requestedBy  String    @db.NVarChar(64)
+  requestedAt  DateTime  @db.DateTime2
+  completedBy  String?   @db.NVarChar(64)
+  completedAt  DateTime? @db.DateTime2
+  resultNote   String?   @db.NVarChar(500)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([tenantId, partnerType, partnerId, status])
+  @@map("pdpa_request")
 }
 
 // ---------------------------------------------------------------------------

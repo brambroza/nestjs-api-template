@@ -66,6 +66,25 @@ export const MESSAGES_TH: Readonly<Record<string, string>> = {
   'MASTER_DATA.DEFAULT_WAREHOUSE_EXISTS':
     'สาขานี้มีคลังสินค้าหลักอยู่แล้ว กำหนดคลังหลักได้เพียงคลังเดียวต่อสาขา',
   'MASTER_DATA.INVALID_WAREHOUSE_FIELD': 'ข้อมูลคลังสินค้าไม่ถูกต้อง',
+
+  'DOMAIN.INVALID_ADDRESS': 'ข้อมูลที่อยู่ไม่ถูกต้อง',
+  'MASTER_DATA.PARTNER_NOT_FOUND':
+    'ไม่พบข้อมูลลูกค้า/ผู้ขายที่ระบุ หรือถูกระงับการใช้งาน',
+  'MASTER_DATA.CONTACT_NOT_FOUND': 'ไม่พบข้อมูลผู้ติดต่อที่ระบุ',
+  'MASTER_DATA.PRIMARY_CONTACT_EXISTS':
+    'มีผู้ติดต่อหลักอยู่แล้ว กำหนดผู้ติดต่อหลักได้เพียงคนเดียว',
+  'MASTER_DATA.INVALID_CONTACT_FIELD': 'ข้อมูลผู้ติดต่อไม่ถูกต้อง',
+  'MASTER_DATA.ADDRESS_NOT_FOUND': 'ไม่พบข้อมูลที่อยู่ที่ระบุ',
+  'MASTER_DATA.DEFAULT_ADDRESS_EXISTS':
+    'มีที่อยู่หลักประเภทนี้อยู่แล้ว กำหนดที่อยู่หลักได้เพียงรายการเดียวต่อประเภท',
+  'MASTER_DATA.INVALID_ADDRESS_FIELD': 'ข้อมูลที่อยู่ไม่ถูกต้อง',
+  'MASTER_DATA.INVALID_CONSENT_FIELD': 'ข้อมูลการให้ความยินยอมไม่ถูกต้อง',
+  'MASTER_DATA.PDPA_REQUEST_NOT_FOUND': 'ไม่พบคำขอใช้สิทธิ์ตาม PDPA ที่ระบุ',
+  'MASTER_DATA.PDPA_REQUEST_ALREADY_OPEN':
+    'มีคำขอประเภทนี้ที่ยังดำเนินการไม่เสร็จอยู่แล้ว',
+  'MASTER_DATA.PDPA_REQUEST_ILLEGAL_TRANSITION':
+    'คำขอนี้ดำเนินการเสร็จสิ้นแล้ว ไม่สามารถเปลี่ยนสถานะได้อีก',
+  'MASTER_DATA.INVALID_PDPA_REQUEST_FIELD': 'ข้อมูลคำขอไม่ถูกต้อง',
 };
 
 const FALLBACK_TH = 'เกิดข้อผิดพลาดที่ไม่คาดคิด';

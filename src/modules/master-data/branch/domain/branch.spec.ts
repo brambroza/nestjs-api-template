@@ -1,3 +1,5 @@
+import { InvalidThaiAddressError } from '../../../../shared/domain';
+
 import { Branch, InvalidBranchFieldError } from './branch';
 
 describe('Branch aggregate', () => {
@@ -52,9 +54,9 @@ describe('Branch aggregate', () => {
     });
   });
 
-  it('rejects a non-5-digit postal code', () => {
+  it('rejects a non-5-digit postal code (via shared ThaiAddress)', () => {
     expect(() =>
       Branch.create({ ...baseProps, address: { postalCode: '1011' } }),
-    ).toThrow(InvalidBranchFieldError);
+    ).toThrow(InvalidThaiAddressError);
   });
 });

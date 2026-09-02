@@ -1,3 +1,8 @@
+import {
+  normaliseThaiAddress,
+  type ThaiAddressFields,
+  type ThaiAddressInput,
+} from '../../../../shared/domain';
 import { DomainError } from '../../../../shared/errors';
 
 export class DuplicateBranchCodeError extends DomainError {
@@ -37,14 +42,7 @@ export class InvalidBranchFieldError extends DomainError {
   readonly code = 'MASTER_DATA.INVALID_BRANCH_FIELD';
 }
 
-export interface BranchAddress {
-  readonly line1: string | null;
-  readonly line2: string | null;
-  readonly subDistrict: string | null;
-  readonly district: string | null;
-  readonly province: string | null;
-  readonly postalCode: string | null;
-}
+export type BranchAddress = ThaiAddressFields;
 
 export interface BranchSnapshot {
   readonly id: string;
@@ -67,7 +65,7 @@ export interface CreateBranchProps {
   readonly code: string;
   readonly name: string;
   readonly branchNumber?: string | null;
-  readonly address?: Partial<BranchAddress> | null;
+  readonly address?: ThaiAddressInput | null;
   readonly now: Date;
 }
 
@@ -101,10 +99,7 @@ export class Branch {
         'branchNumber must be exactly 5 digits (00000 = head office)',
       );
     }
-    const address = normaliseAddress(props.address ?? null);
-    if (address.postalCode !== null && !/^\d{5}$/.test(address.postalCode)) {
-      throw new InvalidBranchFieldError('postalCode must be 5 digits');
-    }
+    const address = normaliseThaiAddress(props.address ?? null);
     return new Branch({
       id: props.id,
       tenantId: props.tenantId,
@@ -127,25 +122,4 @@ export class Branch {
   snapshot(): BranchSnapshot {
     return this.s;
   }
-}
-
-function normaliseAddress(a: Partial<BranchAddress> | null): BranchAddress {
-  const clean = (v: string | null | undefined, max: number): string | null => {
-    const t = (v ?? '').trim();
-    if (t.length === 0) return null;
-    if (t.length > max) {
-      throw new InvalidBranchFieldError(
-        `address field exceeds ${String(max)} chars`,
-      );
-    }
-    return t;
-  };
-  return {
-    line1: clean(a?.line1, 200),
-    line2: clean(a?.line2, 200),
-    subDistrict: clean(a?.subDistrict, 100),
-    district: clean(a?.district, 100),
-    province: clean(a?.province, 100),
-    postalCode: clean(a?.postalCode, 10),
-  };
 }

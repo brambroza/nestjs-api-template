@@ -68,6 +68,29 @@ async function main(): Promise<void> {
           { action: 'create', subject: 'Item' },
           { action: 'read', subject: 'Uom' },
           { action: 'create', subject: 'Uom' },
+          { action: 'read', subject: 'PartnerContact' },
+          { action: 'create', subject: 'PartnerContact' },
+          { action: 'read', subject: 'PartnerAddress' },
+          { action: 'create', subject: 'PartnerAddress' },
+          { action: 'read', subject: 'PdpaConsent' },
+          { action: 'create', subject: 'PdpaConsent' },
+        ],
+      },
+      {
+        // Data Protection Officer: the only non-admin role that can
+        // fulfil/reject data-subject requests (PDPA §41).
+        id: 'role-pdpa-officer',
+        name: 'pdpa-officer',
+        rules: [
+          { action: 'read', subject: 'Customer' },
+          { action: 'read', subject: 'Vendor' },
+          { action: 'read', subject: 'PartnerContact' },
+          { action: 'read', subject: 'PartnerAddress' },
+          { action: 'read', subject: 'PdpaConsent' },
+          { action: 'create', subject: 'PdpaConsent' },
+          { action: 'read', subject: 'PdpaRequest' },
+          { action: 'create', subject: 'PdpaRequest' },
+          { action: 'update', subject: 'PdpaRequest' },
         ],
       },
       {
@@ -297,6 +320,61 @@ async function main(): Promise<void> {
       },
     });
 
+    // Partner sub-resources for CUST-001: a primary contact, a billing
+    // address carrying the customer's own branch number, and one consent.
+    await prisma.partnerContact.upsert({
+      where: { id: 'ct-cust-001-1' },
+      update: {},
+      create: {
+        id: 'ct-cust-001-1',
+        tenantId,
+        partnerType: 'CUSTOMER',
+        partnerId: 'cust-001',
+        fullName: 'สมชาย ใจดี',
+        position: 'Purchasing Manager',
+        email: 'somchai@demo-customer.local',
+        phone: '081-234-5678',
+        isPrimary: true,
+      },
+    });
+    await prisma.partnerAddress.upsert({
+      where: { id: 'ad-cust-001-bill' },
+      update: {},
+      create: {
+        id: 'ad-cust-001-bill',
+        tenantId,
+        partnerType: 'CUSTOMER',
+        partnerId: 'cust-001',
+        addressType: 'BILLING',
+        label: 'สำนักงานใหญ่',
+        line1: '99 ถนนพระราม 9',
+        subDistrict: 'ห้วยขวาง',
+        district: 'ห้วยขวาง',
+        province: 'กรุงเทพมหานคร',
+        postalCode: '10310',
+        countryCode: 'TH',
+        branchNumber: '00000',
+        isDefault: true,
+      },
+    });
+    await prisma.pdpaConsent.upsert({
+      where: { id: 'consent-cust-001-1' },
+      update: {},
+      create: {
+        id: 'consent-cust-001-1',
+        tenantId,
+        partnerType: 'CUSTOMER',
+        partnerId: 'cust-001',
+        contactId: 'ct-cust-001-1',
+        purpose: 'MARKETING',
+        action: 'GRANT',
+        source: 'PAPER_FORM',
+        evidenceRef: 'consent-form-2026-001.pdf',
+        recordedBy: 'user-admin',
+        recordedAt: new Date('2026-01-15T03:00:00.000Z'),
+      },
+    });
+
     // Production-order demo
     await prisma.productionOrder.upsert({
       where: { id: orderId },
@@ -350,12 +428,13 @@ async function main(): Promise<void> {
 
     // eslint-disable-next-line no-console
     console.log(`Seeded tenant "${tenantId}".
-  Roles: admin, master-data-editor, creator, approver, planner, shopfloor
+  Roles: admin, master-data-editor, pdpa-officer, creator, approver, planner, shopfloor
   Users:
     admin@demo.local / admin123!    (roles: admin)
     operator@demo.local / operator123!  (roles: creator, planner, shopfloor)
   Org: Company DEMO > Branch HQ (00000) > Warehouse WH-MAIN (default)
   Master data: UoM (PCS, KG, BOX), Item FIN-A, Customer CUST-001, Vendor VEND-001
+  Partner: CUST-001 has 1 primary contact, 1 default BILLING address, 1 MARKETING consent
   Order: ${orderId} (DRAFT) + BOM RAW-A + 500 kg stock`);
   } finally {
     await prisma.$disconnect();

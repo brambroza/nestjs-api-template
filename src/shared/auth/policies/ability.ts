@@ -34,6 +34,10 @@ export type Subject =
   | 'Company'
   | 'Branch'
   | 'Warehouse'
+  | 'PartnerContact'
+  | 'PartnerAddress'
+  | 'PdpaConsent'
+  | 'PdpaRequest'
   | 'all';
 
 export type AppSubjects = InferSubjects<Subject>;
