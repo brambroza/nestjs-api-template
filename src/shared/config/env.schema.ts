@@ -44,6 +44,16 @@ export const EnvSchema = z.object({
   JWT_SECRET: nonEmpty.min(32, 'JWT_SECRET must be at least 32 chars'),
   JWT_ISSUER: nonEmpty.default('nestjs-api-template'),
   JWT_AUDIENCE: nonEmpty.default('nestjs-api-template'),
+  JWT_ACCESS_TTL: nonEmpty.default('15m'),
+  /**
+   * When true, the JwtAuthGuard also accepts the header-driven stub
+   * (X-User-Id/X-Tenant-Id/X-Roles) as a fallback. Convenient for the
+   * template's dev/test env; MUST be false in production.
+   */
+  AUTH_ALLOW_HEADER_STUB: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
 
   LINE_CHANNEL_ACCESS_TOKEN: nonEmpty,
   LINE_CHANNEL_SECRET: nonEmpty,
