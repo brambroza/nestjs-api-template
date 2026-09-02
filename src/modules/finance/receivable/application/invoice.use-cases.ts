@@ -44,6 +44,8 @@ import {
   type SalesInvoiceRepository,
   type TaxDocumentKind,
   type TaxInvoiceNumberGenerator,
+  AR_LEDGER,
+  type ArLedger,
 } from './ports';
 
 function assertVersion(
@@ -409,6 +411,7 @@ export class IssueInvoiceUseCase {
     @Inject(TRANSACTION_MANAGER) private readonly tx: TransactionManager,
     @Inject(TENANT_CONTEXT) private readonly tenant: TenantContext,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(AR_LEDGER) private readonly ledger: ArLedger,
   ) {}
 
   async execute(input: InvoiceActionInput): Promise<SalesInvoice> {
@@ -431,6 +434,7 @@ export class IssueInvoiceUseCase {
         s.invoiceDate,
       );
       const saved = await this.repo.save(current.issue(number, now));
+      await this.ledger.invoiceIssued(saved);
       await this.outbox.enqueue({
         idempotencyKey: `${saved.id}:issued`,
         event: invoiceEvent(
@@ -459,6 +463,7 @@ export class VoidInvoiceUseCase {
     @Inject(TRANSACTION_MANAGER) private readonly tx: TransactionManager,
     @Inject(TENANT_CONTEXT) private readonly tenant: TenantContext,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(AR_LEDGER) private readonly ledger: ArLedger,
   ) {}
 
   async execute(input: InvoiceActionInput): Promise<SalesInvoice> {
@@ -475,6 +480,7 @@ export class VoidInvoiceUseCase {
         );
       const saved = await this.repo.save(current.void(input.reason ?? '', now));
       if (saved.snapshot().number) {
+        await this.ledger.invoiceVoided(saved, toIsoDate(now));
         await this.outbox.enqueue({
           idempotencyKey: `${saved.id}:voided`,
           event: invoiceEvent(
@@ -521,6 +527,7 @@ export class CreateNoteUseCase {
     @Inject(TRANSACTION_MANAGER) private readonly tx: TransactionManager,
     @Inject(TENANT_CONTEXT) private readonly tenant: TenantContext,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(AR_LEDGER) private readonly ledger: ArLedger,
   ) {}
 
   async execute(
@@ -614,6 +621,7 @@ export class CreateNoteUseCase {
         note = note.markApplied(now);
       }
       await this.repo.create(note);
+      await this.ledger.invoiceIssued(note);
       await this.outbox.enqueue({
         idempotencyKey: `${note.id}:issued`,
         event: invoiceEvent(

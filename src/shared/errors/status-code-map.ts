@@ -215,6 +215,21 @@ export const DOMAIN_ERROR_STATUS: Readonly<Record<string, HttpStatus>> = {
   'AP.INVALID_BATCH': HttpStatus.BAD_REQUEST,
   'AP.CERTIFICATE_NOT_FOUND': HttpStatus.NOT_FOUND,
   'AP.VERSION_CONFLICT': HttpStatus.CONFLICT,
+  // General ledger (EPIC-C.4)
+  'GL.REF_INVALID': HttpStatus.BAD_REQUEST,
+  'GL.ENTRY_NOT_FOUND': HttpStatus.NOT_FOUND,
+  'GL.ILLEGAL_ENTRY_TRANSITION': HttpStatus.CONFLICT,
+  'GL.INVALID_ENTRY': HttpStatus.BAD_REQUEST,
+  'GL.UNBALANCED_ENTRY': HttpStatus.BAD_REQUEST,
+  'GL.ACCOUNT_MAPPING_MISSING': HttpStatus.CONFLICT,
+  'GL.ACCOUNT_NOT_POSTABLE': HttpStatus.BAD_REQUEST,
+  'GL.APPROVAL_PENDING': HttpStatus.CONFLICT,
+  'GL.VERSION_CONFLICT': HttpStatus.CONFLICT,
+  'GL.PERIOD_HAS_UNPOSTED_ENTRIES': HttpStatus.CONFLICT,
+  'GL.PERIOD_NOT_FOUND': HttpStatus.NOT_FOUND,
+  // Thai tax exports (EPIC-C.5)
+  'TAX.REF_INVALID': HttpStatus.BAD_REQUEST,
+  'TAX.INVALID_PERIOD': HttpStatus.BAD_REQUEST,
 };
 
 export function httpStatusForCode(code: string): HttpStatus {

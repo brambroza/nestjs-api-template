@@ -11,6 +11,7 @@ import {
   type ArEvent,
 } from '../../domain';
 import type {
+  ArLedger,
   ArOutbox,
   ArOutboxEnvelope,
   ArPostingGate,
@@ -270,4 +271,20 @@ export function tenantOf(tenantId: string, userId: string): TenantContext {
     getUserId: () => userId,
     tryGetUserId: () => userId,
   };
+}
+
+export class FakeArLedger implements ArLedger {
+  readonly calls: string[] = [];
+  async invoiceIssued(inv: SalesInvoice) {
+    this.calls.push(`invoice:${inv.id}`);
+  }
+  async invoiceVoided(inv: SalesInvoice) {
+    this.calls.push(`invoice-void:${inv.id}`);
+  }
+  async receiptPosted(r: Receipt) {
+    this.calls.push(`receipt:${r.id}`);
+  }
+  async receiptVoided(r: Receipt) {
+    this.calls.push(`receipt-void:${r.id}`);
+  }
 }

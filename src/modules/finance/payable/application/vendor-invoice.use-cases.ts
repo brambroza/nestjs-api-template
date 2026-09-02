@@ -41,6 +41,8 @@ import {
   type ApTax,
   type VendorInvoiceFilter,
   type VendorInvoiceRepository,
+  AP_LEDGER,
+  type ApLedger,
 } from './ports';
 
 export const VENDOR_INVOICE_NUMBER_PREFIX = 'AP';
@@ -286,6 +288,7 @@ export class PostVendorInvoiceUseCase {
     @Inject(TRANSACTION_MANAGER) private readonly tx: TransactionManager,
     @Inject(TENANT_CONTEXT) private readonly tenant: TenantContext,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(AP_LEDGER) private readonly ledger: ApLedger,
   ) {}
 
   async execute(input: VendorInvoiceActionInput): Promise<VendorInvoice> {
@@ -302,6 +305,7 @@ export class PostVendorInvoiceUseCase {
       const saved = await this.repo.save(
         inv.post(now, input.acceptVariance ?? false),
       );
+      await this.ledger.invoicePosted(saved);
       await this.outbox.enqueue({
         idempotencyKey: `${saved.id}:posted`,
         event: invoiceEvent(
@@ -326,6 +330,7 @@ export class VoidVendorInvoiceUseCase {
     @Inject(TRANSACTION_MANAGER) private readonly tx: TransactionManager,
     @Inject(TENANT_CONTEXT) private readonly tenant: TenantContext,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(AP_LEDGER) private readonly ledger: ApLedger,
   ) {}
 
   async execute(input: VendorInvoiceActionInput): Promise<VendorInvoice> {
@@ -336,8 +341,10 @@ export class VoidVendorInvoiceUseCase {
       if (!inv) throw new VendorInvoiceNotFoundError(input.invoiceId);
       assertVersion(inv, input.expectedVersion);
       const wasOpen = inv.status === 'OPEN';
-      if (wasOpen)
+      if (wasOpen) {
         await this.gate.assertOpen(inv.snapshot().companyId, toIsoDate(now));
+        await this.ledger.invoiceVoided(inv, toIsoDate(now));
+      }
       const saved = await this.repo.save(inv.void(input.reason ?? '', now));
       if (wasOpen)
         await this.outbox.enqueue({

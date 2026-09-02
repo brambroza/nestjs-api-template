@@ -63,6 +63,9 @@ export type Subject =
   | 'Receipt'
   | 'VendorInvoice'
   | 'PaymentVoucher'
+  | 'JournalEntry'
+  | 'LedgerReport'
+  | 'TaxReport'
   | 'all';
 
 export type AppSubjects = InferSubjects<Subject>;

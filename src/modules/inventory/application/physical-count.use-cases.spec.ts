@@ -20,6 +20,7 @@ import {
   InMemoryBalances,
   InMemoryCosts,
   InMemoryCounts,
+  InMemoryInventoryLedger,
   InMemoryInventoryOutbox,
   InMemoryInventoryRefLookup,
   InMemoryLots,
@@ -75,6 +76,7 @@ describe('Physical count use cases', () => {
       outbox,
       tenant,
       clock,
+      new InMemoryInventoryLedger(),
     );
     await ledger.post({
       warehouseId: 'wh-main',

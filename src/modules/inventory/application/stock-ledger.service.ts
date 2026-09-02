@@ -39,6 +39,7 @@ import {
   type InventoryRefLookup,
   type ItemRef,
 } from './ports/inventory-ref-lookup.port';
+import { INVENTORY_LEDGER, type InventoryLedger } from './ports/ledger.port';
 import { INVENTORY_OUTBOX, type InventoryOutbox } from './ports/outbox.port';
 import {
   COST_REPOSITORY,
@@ -130,6 +131,7 @@ export class StockLedgerService {
     @Inject(INVENTORY_OUTBOX) private readonly outbox: InventoryOutbox,
     @Inject(TENANT_CONTEXT) private readonly tenant: TenantContext,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(INVENTORY_LEDGER) private readonly gl: InventoryLedger,
   ) {}
 
   async post(cmd: PostCommand): Promise<StockMovementSnapshot[]> {
@@ -200,6 +202,15 @@ export class StockLedgerService {
           );
         }
       }
+    }
+    if (out.length > 0) {
+      await this.gl.movementsPosted({
+        warehouseId: cmd.warehouseId,
+        referenceType: cmd.referenceType.trim().toUpperCase(),
+        referenceId: cmd.referenceId,
+        currency,
+        movements: out,
+      });
     }
     return out;
   }

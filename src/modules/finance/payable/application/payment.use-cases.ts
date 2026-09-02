@@ -51,6 +51,8 @@ import {
   type VendorInvoiceRepository,
   type VoucherFilter,
   type WhtCertificateRepository,
+  AP_LEDGER,
+  type ApLedger,
 } from './ports';
 
 export const VOUCHER_NUMBER_PREFIX = 'PV';
@@ -242,6 +244,7 @@ export class VoucherPoster {
     @Inject(AP_POSTING_GATE) private readonly gate: ApPostingGate,
     @Inject(AP_OUTBOX) private readonly outbox: ApOutbox,
     @Inject(TENANT_CONTEXT) private readonly tenant: TenantContext,
+    @Inject(AP_LEDGER) private readonly ledger: ApLedger,
   ) {}
 
   async post(v: PaymentVoucher, now: Date): Promise<PaymentVoucher> {
@@ -260,6 +263,7 @@ export class VoucherPoster {
       await this.invoices.save(inv.applySettlement(a.amountMinor, now));
     }
     const posted = await this.vouchers.save(v.post(now));
+    await this.ledger.paymentPosted(posted);
     if (s.whtMinor > 0n) {
       const built = buildCertificateLines(whtLines, randomUUID);
       const cert: WhtCertificateSnapshot = {
@@ -298,6 +302,7 @@ export class VoucherPoster {
     const wasPosted = v.status === 'POSTED';
     if (wasPosted) {
       await this.gate.assertOpen(v.snapshot().companyId, toIsoDate(now));
+      await this.ledger.paymentVoided(v, toIsoDate(now));
       for (const a of v.snapshot().allocations) {
         const inv = await this.invoices.findById(tenantId, a.invoiceId);
         if (!inv) throw new VendorInvoiceNotFoundError(a.invoiceId);

@@ -10,6 +10,7 @@ import {
 } from './payment.use-cases';
 import { ApAgingUseCase, CashForecastUseCase } from './report.use-cases';
 import {
+  FakeApLedger,
   FakeApTax,
   FakeNumbers,
   FakePostingGate,
@@ -31,6 +32,7 @@ import {
 describe('Payable use cases', () => {
   const tenant = tenantOf('t1', 'alice');
   const tx = new FakeTx();
+  const glLedger = new FakeApLedger();
   let invoices: InMemoryVendorInvoices;
   let vouchers: InMemoryVouchers;
   let batches: InMemoryBatches;
@@ -117,6 +119,7 @@ describe('Payable use cases', () => {
       tx,
       tenant,
       clock,
+      glLedger,
     );
     createVoucher = new CreatePaymentVoucherUseCase(
       vouchers,
@@ -135,6 +138,7 @@ describe('Payable use cases', () => {
       gate,
       outbox,
       tenant,
+      glLedger,
     );
   });
 

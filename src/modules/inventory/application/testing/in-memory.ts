@@ -26,6 +26,10 @@ import type {
   InventoryOutboxEnvelope,
 } from '../ports/outbox.port';
 import type {
+  InventoryLedger,
+  InventoryPostingBatch,
+} from '../ports/ledger.port';
+import type {
   BalanceWithLot,
   CostRepository,
   LotRepository,
@@ -423,5 +427,12 @@ export class InMemoryCounts implements CountRepository {
     });
     this.rows.set(c.id, next);
     return next;
+  }
+}
+
+export class InMemoryInventoryLedger implements InventoryLedger {
+  readonly batches: InventoryPostingBatch[] = [];
+  async movementsPosted(batch: InventoryPostingBatch) {
+    this.batches.push(batch);
   }
 }

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { MasterDataModule } from '../../master-data';
+import { LedgerModule } from '../ledger';
 
 import { InvoiceController } from './api/invoice.controller';
 import {
@@ -8,6 +9,7 @@ import {
   ReceiptController,
 } from './api/receipt.controller';
 import {
+  AR_LEDGER,
   AR_OUTBOX,
   AR_POSTING_GATE,
   AR_REF_LOOKUP,
@@ -37,6 +39,7 @@ import {
   MasterDataArTaxAdapter,
   MasterDataPostingGate,
 } from './infrastructure/master-data.adapters';
+import { LedgerArAdapter } from './infrastructure/ledger.adapter';
 import { PrismaArOutbox } from './infrastructure/prisma-ar-outbox';
 import { PrismaArRefLookup } from './infrastructure/prisma-ar-ref-lookup';
 import {
@@ -47,7 +50,7 @@ import { PrismaTaxInvoiceNumberGenerator } from './infrastructure/prisma-tax-inv
 
 /** EPIC-C.2 Accounts receivable: tax invoices, notes, receipts, aging, statements. */
 @Module({
-  imports: [MasterDataModule],
+  imports: [MasterDataModule, LedgerModule],
   controllers: [InvoiceController, ReceiptController, ArReportController],
   providers: [
     {
@@ -63,6 +66,7 @@ import { PrismaTaxInvoiceNumberGenerator } from './infrastructure/prisma-tax-inv
     { provide: AR_TAX, useClass: MasterDataArTaxAdapter },
     { provide: AR_POSTING_GATE, useClass: MasterDataPostingGate },
     { provide: AR_OUTBOX, useClass: PrismaArOutbox },
+    { provide: AR_LEDGER, useClass: LedgerArAdapter },
     CreateInvoiceFromSalesOrderUseCase,
     CreateManualInvoiceUseCase,
     UpdateInvoiceUseCase,

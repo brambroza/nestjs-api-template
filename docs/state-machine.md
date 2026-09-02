@@ -259,3 +259,81 @@ draft vouchers (or generates one per vendor for everything due) and posts or
 voids them together; vouchers in a batch are paid through the batch.
 
 Reports: `/ap/aging` and `/ap/cash-forecast` (open payables by due week).
+
+---
+
+# General Ledger (EPIC-C.4)
+
+Code: `src/modules/finance/ledger/domain/{journal-entry,posting-rules,reports}.ts`.
+
+## Journal entry
+
+Automatic entries (AR invoice / receipt, AP invoice / payment, inventory
+movement, year-end close) are created and POSTED in the source document's
+transaction through `LEDGER_POSTING` — the only ledger surface other modules
+see. Each carries a `sourceKey` (`ar-invoice:<id>:issued`, `inventory:<movementId>`
+…) so a replay is a no-op, and a void reverses every POSTED entry of the source
+with a mirror entry instead of editing anything.
+
+Manual journal vouchers (`JV-yyyymm-nnnn`): DRAFT → PENDING_APPROVAL
+(`JOURNAL_ENTRY` policy on the debit total; no matching step posts at once)
+→ POSTED (period gate on the entry date) → REVERSED (mirror entry, any
+later date). DRAFT | PENDING_APPROVAL → VOID. A rejected approval returns
+the entry to DRAFT. Posted entries are never edited or deleted.
+
+## Posting keys (T-351)
+
+Sub-ledgers post against keys, resolved per company through
+`fin_account_mapping` (`PUT /gl/account-mappings`): AR_CONTROL, AP_CONTROL,
+OUTPUT_VAT, INPUT_VAT, WHT_PAYABLE, WHT_RECEIVABLE, SALES_REVENUE,
+PURCHASE_EXPENSE, CASH, BANK, INVENTORY, COGS, GRNI, INVENTORY_ADJUSTMENT,
+RETAINED_EARNINGS. A missing mapping fails the posting (409
+`GL.ACCOUNT_MAPPING_MISSING`) — and with it the invoice, receipt or stock
+movement, since they share the transaction.
+
+| Event | Debit | Credit |
+| --- | --- | --- |
+| Tax invoice / debit note issued | AR_CONTROL (customer) | SALES_REVENUE, OUTPUT_VAT |
+| Credit note issued | SALES_REVENUE, OUTPUT_VAT | AR_CONTROL (customer) |
+| Receipt posted | CASH or BANK, WHT_RECEIVABLE | AR_CONTROL (customer) |
+| Vendor invoice posted | GRNI (PO-backed) or PURCHASE_EXPENSE, INPUT_VAT | AP_CONTROL (vendor) |
+| Payment voucher posted | AP_CONTROL (vendor) | WHT_PAYABLE, CASH or BANK |
+| Stock receipt | INVENTORY | GRNI |
+| Stock issue | COGS | INVENTORY |
+| Stock adjustment in / out | INVENTORY / INVENTORY_ADJUSTMENT | INVENTORY_ADJUSTMENT / INVENTORY |
+| Year-end close | every P&L account with a credit balance… | …and RETAINED_EARNINGS takes the net |
+
+Transfers and reservations move nothing in the GL.
+
+## Period close (T-352)
+
+`POST /gl/periods/close` refuses while any DRAFT / PENDING_APPROVAL entry is
+dated inside the period, then locks it through master-data (reversible with a
+reason via the fiscal-year API). `POST /gl/fiscal-years/:id/close` requires the
+whole year posted, writes the closing entry dated the last day (this one entry
+bypasses the period gate), locks the remaining periods and closes the year —
+re-running it is idempotent.
+
+Reports: `/gl/trial-balance` (opening / movements / closing per account,
+`balanced` flag), `/gl/profit-and-loss`, `/gl/balance-sheet` (P&L accounts not
+yet closed show as `currentEarningsMinor`). All amounts come from
+POSTED / REVERSED lines only.
+
+---
+
+# Thai tax exports (EPIC-C.5)
+
+Code: `src/modules/finance/tax/domain/{pp30,pnd,vat-report,csv}.ts`.
+
+Read-only over AR / AP / WHT tables, per company and tax month
+(`?companyId&month=YYYY-MM&format=json|csv`); CSV is UTF-8 with BOM so Thai
+Excel opens it directly, dates are dd/mm/พ.ศ.
+
+- `/tax/vat-report?kind=OUTPUT|INPUT` — รายงานภาษีขาย / ภาษีซื้อ, one row per
+  issued tax invoice (credit notes negative) or posted vendor invoice.
+- `/tax/pp30` — ภ.พ.30 items 1, 5, 6, 7, 8, 9 from the two VAT reports.
+- `/tax/pnd?form=PND3|PND53` — ภ.ง.ด.3 / ภ.ง.ด.53 attachment rows from the
+  WHT certificates issued by payment vouchers (void certificates excluded).
+
+Not in this template: e-Tax Invoice XML signing (T-362), the archive
+service (T-363), cash-flow statement (T-356) and bank reconciliation (T-357).

@@ -13,8 +13,10 @@ export {
 } from './price-list/application';
 export {
   CheckPostingDateUseCase,
+  CloseFiscalYearUseCase,
   ConvertAmountUseCase,
   GetFxRateUseCase,
+  LockPeriodUseCase,
   ResolveTaxUseCase,
   type CheckPostingDateInput,
   type ConvertAmountInput,

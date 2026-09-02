@@ -17,6 +17,7 @@ export const AR_REF_LOOKUP = Symbol('AR_REF_LOOKUP');
 export const AR_TAX = Symbol('AR_TAX');
 export const AR_POSTING_GATE = Symbol('AR_POSTING_GATE');
 export const AR_OUTBOX = Symbol('AR_OUTBOX');
+export const AR_LEDGER = Symbol('AR_LEDGER');
 
 export interface InvoiceFilter {
   readonly status?: InvoiceStatus | null;
@@ -190,4 +191,12 @@ export interface ArOutboxEnvelope {
 }
 export interface ArOutbox {
   enqueue(envelope: ArOutboxEnvelope): Promise<void>;
+}
+
+/** T-351: GL postings for AR documents, inside the same transaction. */
+export interface ArLedger {
+  invoiceIssued(inv: SalesInvoice): Promise<void>;
+  invoiceVoided(inv: SalesInvoice, date: IsoDate): Promise<void>;
+  receiptPosted(r: Receipt): Promise<void>;
+  receiptVoided(r: Receipt, date: IsoDate): Promise<void>;
 }

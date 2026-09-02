@@ -13,6 +13,7 @@ import {
   FixedClock,
   InMemoryBalances,
   InMemoryCosts,
+  InMemoryInventoryLedger,
   InMemoryInventoryOutbox,
   InMemoryInventoryRefLookup,
   InMemoryLots,
@@ -90,6 +91,7 @@ describe('StockLedgerService', () => {
       outbox,
       tenant,
       clock,
+      new InMemoryInventoryLedger(),
     );
     gateway = new InventoryGatewayService(ledger, refs, tenant);
   });

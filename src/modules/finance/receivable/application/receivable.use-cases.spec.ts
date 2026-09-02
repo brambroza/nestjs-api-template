@@ -17,6 +17,7 @@ import {
 } from './receipt.use-cases';
 import { ArAgingUseCase, CustomerStatementUseCase } from './report.use-cases';
 import {
+  FakeArLedger,
   FakeNumbers,
   FakePostingGate,
   FakeTaxNumbers,
@@ -32,6 +33,7 @@ import {
 describe('Receivable use cases', () => {
   const tenant = tenantOf('t1', 'alice');
   const tx = new FakeTx();
+  const glLedger = new FakeArLedger();
   let invoices: InMemoryInvoices;
   let receipts: InMemoryReceipts;
   let refs: InMemoryArRefLookup;
@@ -120,6 +122,7 @@ describe('Receivable use cases', () => {
       tx,
       tenant,
       clock,
+      glLedger,
     );
     note = new CreateNoteUseCase(
       invoices,
@@ -130,6 +133,7 @@ describe('Receivable use cases', () => {
       tx,
       tenant,
       clock,
+      glLedger,
     );
     createReceipt = new CreateReceiptUseCase(
       receipts,
@@ -148,6 +152,7 @@ describe('Receivable use cases', () => {
       tx,
       tenant,
       clock,
+      glLedger,
     );
   });
 
@@ -238,6 +243,7 @@ describe('Receivable use cases', () => {
       tx,
       tenant,
       clock,
+      glLedger,
     );
     await voidReceipt.execute({ receiptId: r.id });
     expect((await invoices.findById('t1', inv.id))?.snapshot()).toMatchObject({

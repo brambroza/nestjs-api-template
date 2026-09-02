@@ -12,6 +12,7 @@ import {
   type WhtCertificateSnapshot,
 } from '../../domain';
 import type {
+  ApLedger,
   ApOutbox,
   ApOutboxEnvelope,
   ApPostingGate,
@@ -295,4 +296,20 @@ export function tenantOf(tenantId: string, userId: string): TenantContext {
     getUserId: () => userId,
     tryGetUserId: () => userId,
   };
+}
+
+export class FakeApLedger implements ApLedger {
+  readonly calls: string[] = [];
+  async invoicePosted(inv: VendorInvoice) {
+    this.calls.push(`invoice:${inv.id}`);
+  }
+  async invoiceVoided(inv: VendorInvoice) {
+    this.calls.push(`invoice-void:${inv.id}`);
+  }
+  async paymentPosted(v: PaymentVoucher) {
+    this.calls.push(`payment:${v.id}`);
+  }
+  async paymentVoided(v: PaymentVoucher) {
+    this.calls.push(`payment-void:${v.id}`);
+  }
 }

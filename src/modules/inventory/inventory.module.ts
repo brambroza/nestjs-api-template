@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 
 import { ApprovalModule } from '../approval';
+import { LedgerModule } from '../finance/ledger';
 
 import { CountController } from './api/count.controller';
 import { InventoryController } from './api/inventory.controller';
@@ -39,6 +40,7 @@ import {
 } from './application';
 import { COUNT_REPOSITORY } from './application/ports/count.repository';
 import { INVENTORY_REF_LOOKUP } from './application/ports/inventory-ref-lookup.port';
+import { INVENTORY_LEDGER } from './application/ports/ledger.port';
 import { INVENTORY_OUTBOX } from './application/ports/outbox.port';
 import {
   COST_REPOSITORY,
@@ -50,6 +52,7 @@ import {
   TRANSFER_REPOSITORY,
 } from './application/ports/repositories';
 import { ExpiryAlertCron } from './infrastructure/expiry-alert.cron';
+import { LedgerInventoryAdapter } from './infrastructure/ledger.adapter';
 import { PrismaCountRepository } from './infrastructure/prisma-count.repository';
 import { PrismaInventoryOutbox } from './infrastructure/prisma-inventory-outbox';
 import { PrismaInventoryRefLookup } from './infrastructure/prisma-inventory-ref-lookup';
@@ -68,7 +71,7 @@ import {
  * from this module's root index.
  */
 @Module({
-  imports: [ScheduleModule.forRoot(), ApprovalModule],
+  imports: [ScheduleModule.forRoot(), ApprovalModule, LedgerModule],
   controllers: [InventoryController, TransferController, CountController],
   providers: [
     {
@@ -87,6 +90,7 @@ import {
     { provide: COUNT_REPOSITORY, useClass: PrismaCountRepository },
     { provide: INVENTORY_REF_LOOKUP, useClass: PrismaInventoryRefLookup },
     { provide: INVENTORY_OUTBOX, useClass: PrismaInventoryOutbox },
+    { provide: INVENTORY_LEDGER, useClass: LedgerInventoryAdapter },
     { provide: INVENTORY_GATEWAY, useClass: InventoryGatewayService },
     StockLedgerService,
     ExpiryAlertCron,

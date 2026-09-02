@@ -18,6 +18,7 @@ export const AP_REF_LOOKUP = Symbol('AP_REF_LOOKUP');
 export const AP_TAX = Symbol('AP_TAX');
 export const AP_POSTING_GATE = Symbol('AP_POSTING_GATE');
 export const AP_OUTBOX = Symbol('AP_OUTBOX');
+export const AP_LEDGER = Symbol('AP_LEDGER');
 
 export interface VendorInvoiceFilter {
   readonly status?: VendorInvoiceStatus | null;
@@ -199,4 +200,12 @@ export interface ApOutboxEnvelope {
 }
 export interface ApOutbox {
   enqueue(envelope: ApOutboxEnvelope): Promise<void>;
+}
+
+/** T-351: GL postings for AP documents, inside the same transaction. */
+export interface ApLedger {
+  invoicePosted(inv: VendorInvoice): Promise<void>;
+  invoiceVoided(inv: VendorInvoice, date: IsoDate): Promise<void>;
+  paymentPosted(v: PaymentVoucher): Promise<void>;
+  paymentVoided(v: PaymentVoucher, date: IsoDate): Promise<void>;
 }

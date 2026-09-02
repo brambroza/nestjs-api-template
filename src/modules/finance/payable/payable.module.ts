@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { MasterDataModule } from '../../master-data';
+import { LedgerModule } from '../ledger';
 
 import {
   ApReportController,
@@ -10,6 +11,7 @@ import {
   WhtCertificateController,
 } from './api/payable.controller';
 import {
+  AP_LEDGER,
   AP_OUTBOX,
   AP_POSTING_GATE,
   AP_REF_LOOKUP,
@@ -42,6 +44,7 @@ import {
   MasterDataApPostingGate,
   MasterDataApTaxAdapter,
 } from './infrastructure/master-data.adapters';
+import { LedgerApAdapter } from './infrastructure/ledger.adapter';
 import { PrismaApOutbox } from './infrastructure/prisma-ap-outbox';
 import { PrismaApRefLookup } from './infrastructure/prisma-ap-ref-lookup';
 import {
@@ -53,7 +56,7 @@ import {
 
 /** EPIC-C.3 Accounts payable: vendor invoices (3-way match), payment vouchers with WHT, batches, certificates, aging. */
 @Module({
-  imports: [MasterDataModule],
+  imports: [MasterDataModule, LedgerModule],
   controllers: [
     VendorInvoiceController,
     PaymentVoucherController,
@@ -82,6 +85,7 @@ import {
     { provide: AP_TAX, useClass: MasterDataApTaxAdapter },
     { provide: AP_POSTING_GATE, useClass: MasterDataApPostingGate },
     { provide: AP_OUTBOX, useClass: PrismaApOutbox },
+    { provide: AP_LEDGER, useClass: LedgerApAdapter },
     VoucherPoster,
     CreateVendorInvoiceUseCase,
     PostVendorInvoiceUseCase,

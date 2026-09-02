@@ -98,6 +98,9 @@ async function main(): Promise<void> {
           { action: 'manage', subject: 'PaymentVoucher' },
           { action: 'manage', subject: 'SalesInvoice' },
           { action: 'manage', subject: 'Receipt' },
+          { action: 'manage', subject: 'JournalEntry' },
+          { action: 'read', subject: 'LedgerReport' },
+          { action: 'read', subject: 'TaxReport' },
           { action: 'read', subject: 'Company' },
           { action: 'read', subject: 'Item' },
           { action: 'manage', subject: 'Currency' },
@@ -224,6 +227,19 @@ async function main(): Promise<void> {
           { action: 'read', subject: 'Branch' },
           { action: 'read', subject: 'Item' },
           { action: 'read', subject: 'TaxCode' },
+        ],
+      },
+      {
+        // General-ledger accountant: manual JVs, statements, tax exports.
+        id: 'role-gl-accountant',
+        name: 'gl-accountant',
+        rules: [
+          { action: 'manage', subject: 'JournalEntry' },
+          { action: 'read', subject: 'LedgerReport' },
+          { action: 'read', subject: 'TaxReport' },
+          { action: 'read', subject: 'Account' },
+          { action: 'read', subject: 'FiscalYear' },
+          { action: 'read', subject: 'Company' },
         ],
       },
       {
@@ -517,6 +533,12 @@ async function main(): Promise<void> {
         id: 'apv-adj', documentType: 'STOCK_ADJUSTMENT', name: 'Stock adjustment (>= 10,000)',
         steps: [
           { id: 'apv-adj-1', stepNo: 1, name: 'Finance', approverRole: 'finance-admin', minAmountMinor: 10_000_00n as bigint | null },
+        ],
+      },
+      {
+        id: 'apv-jv', documentType: 'JOURNAL_ENTRY', name: 'Manual journal (>= 100,000)',
+        steps: [
+          { id: 'apv-jv-1', stepNo: 1, name: 'Finance', approverRole: 'finance-admin', minAmountMinor: 100_000_00n as bigint | null },
         ],
       },
       {
@@ -869,10 +891,12 @@ async function main(): Promise<void> {
       { id: 'acc-1200', code: '1200', name: 'Accounts receivable', nameTh: 'ลูกหนี้การค้า', type: 'ASSET', parent: 'acc-1000', postable: true },
       { id: 'acc-1300', code: '1300', name: 'Inventory', nameTh: 'สินค้าคงเหลือ', type: 'ASSET', parent: 'acc-1000', postable: true },
       { id: 'acc-1400', code: '1400', name: 'Input VAT', nameTh: 'ภาษีซื้อ', type: 'ASSET', parent: 'acc-1000', postable: true },
+      { id: 'acc-1500', code: '1500', name: 'Withholding tax receivable', nameTh: 'ภาษีถูกหัก ณ ที่จ่าย', type: 'ASSET', parent: 'acc-1000', postable: true },
       { id: 'acc-2000', code: '2000', name: 'Liabilities', nameTh: 'หนี้สิน', type: 'LIABILITY', parent: null, postable: false },
       { id: 'acc-2100', code: '2100', name: 'Accounts payable', nameTh: 'เจ้าหนี้การค้า', type: 'LIABILITY', parent: 'acc-2000', postable: true },
       { id: 'acc-2200', code: '2200', name: 'Output VAT', nameTh: 'ภาษีขาย', type: 'LIABILITY', parent: 'acc-2000', postable: true },
       { id: 'acc-2300', code: '2300', name: 'Withholding tax payable', nameTh: 'ภาษีหัก ณ ที่จ่ายค้างจ่าย', type: 'LIABILITY', parent: 'acc-2000', postable: true },
+      { id: 'acc-2400', code: '2400', name: 'Goods received not invoiced', nameTh: 'สินค้ารับแล้วรอใบแจ้งหนี้', type: 'LIABILITY', parent: 'acc-2000', postable: true },
       { id: 'acc-3000', code: '3000', name: 'Equity', nameTh: 'ส่วนของผู้ถือหุ้น', type: 'EQUITY', parent: null, postable: false },
       { id: 'acc-3100', code: '3100', name: 'Share capital', nameTh: 'ทุนเรือนหุ้น', type: 'EQUITY', parent: 'acc-3000', postable: true },
       { id: 'acc-3200', code: '3200', name: 'Retained earnings', nameTh: 'กำไรสะสม', type: 'EQUITY', parent: 'acc-3000', postable: true },
@@ -882,6 +906,8 @@ async function main(): Promise<void> {
       { id: 'acc-5100', code: '5100', name: 'Cost of goods sold', nameTh: 'ต้นทุนขาย', type: 'EXPENSE', parent: 'acc-5000', postable: true },
       { id: 'acc-5200', code: '5200', name: 'Salaries', nameTh: 'เงินเดือน', type: 'EXPENSE', parent: 'acc-5000', postable: true },
       { id: 'acc-5300', code: '5300', name: 'Rent', nameTh: 'ค่าเช่า', type: 'EXPENSE', parent: 'acc-5000', postable: true },
+      { id: 'acc-5400', code: '5400', name: 'Inventory adjustments', nameTh: 'ผลต่างจากการปรับปรุงสินค้าคงเหลือ', type: 'EXPENSE', parent: 'acc-5000', postable: true },
+      { id: 'acc-5500', code: '5500', name: 'Purchases and services', nameTh: 'ซื้อสินค้าและค่าบริการ', type: 'EXPENSE', parent: 'acc-5000', postable: true },
     ];
     for (const a of coa) {
       const path = a.parent ? `/${a.parent}/${a.id}/` : `/${a.id}/`;
@@ -900,6 +926,32 @@ async function main(): Promise<void> {
           depth: a.parent ? 1 : 0,
           isPostable: a.postable,
         },
+      });
+    }
+
+    // GL posting keys → accounts for the demo company (EPIC-C.4, T-351).
+    const mappings: Array<[string, string, string]> = [
+      ['AR_CONTROL', 'acc-1200', '1200'],
+      ['AP_CONTROL', 'acc-2100', '2100'],
+      ['OUTPUT_VAT', 'acc-2200', '2200'],
+      ['INPUT_VAT', 'acc-1400', '1400'],
+      ['WHT_PAYABLE', 'acc-2300', '2300'],
+      ['WHT_RECEIVABLE', 'acc-1500', '1500'],
+      ['SALES_REVENUE', 'acc-4100', '4100'],
+      ['PURCHASE_EXPENSE', 'acc-5500', '5500'],
+      ['CASH', 'acc-1100', '1100'],
+      ['BANK', 'acc-1100', '1100'],
+      ['INVENTORY', 'acc-1300', '1300'],
+      ['COGS', 'acc-5100', '5100'],
+      ['GRNI', 'acc-2400', '2400'],
+      ['INVENTORY_ADJUSTMENT', 'acc-5400', '5400'],
+      ['RETAINED_EARNINGS', 'acc-3200', '3200'],
+    ];
+    for (const [key, accountId, accountCode] of mappings) {
+      await prisma.accountMapping.upsert({
+        where: { tenantId_companyId_key: { tenantId, companyId: 'co-demo', key } },
+        update: { accountId, accountCode, updatedBy: 'user-admin' },
+        create: { id: `map-${key.toLowerCase()}`, tenantId, companyId: 'co-demo', key, accountId, accountCode, updatedBy: 'user-admin' },
       });
     }
 
@@ -1035,7 +1087,7 @@ async function main(): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(`Seeded tenant "${tenantId}".
   Roles: admin, master-data-editor, pdpa-officer, finance-admin, sales, sales-manager,
-    purchaser, purchasing-manager, warehouse, ar-clerk, ap-clerk, creator, approver, planner, shopfloor
+    purchaser, purchasing-manager, warehouse, ar-clerk, ap-clerk, gl-accountant, creator, approver, planner, shopfloor
   Users:
     admin@demo.local / admin123!    (roles: admin)
     operator@demo.local / operator123!  (roles: creator, planner, shopfloor)

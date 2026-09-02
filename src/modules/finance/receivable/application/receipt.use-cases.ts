@@ -39,6 +39,8 @@ import {
   type ReceiptFilter,
   type ReceiptRepository,
   type SalesInvoiceRepository,
+  AR_LEDGER,
+  type ArLedger,
 } from './ports';
 
 export const RECEIPT_NUMBER_PREFIX = 'RC';
@@ -208,6 +210,7 @@ export class PostReceiptUseCase {
     @Inject(TRANSACTION_MANAGER) private readonly tx: TransactionManager,
     @Inject(TENANT_CONTEXT) private readonly tenant: TenantContext,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(AR_LEDGER) private readonly ledger: ArLedger,
   ) {}
 
   async execute(input: ReceiptActionInput): Promise<Receipt> {
@@ -225,6 +228,7 @@ export class PostReceiptUseCase {
         await this.invoices.save(inv.applySettlement(a.amountMinor, now));
       }
       const posted = await this.receipts.save(r.post(now));
+      await this.ledger.receiptPosted(posted);
       await this.outbox.enqueue({
         idempotencyKey: `${posted.id}:posted`,
         event: receiptEvent(
@@ -250,6 +254,7 @@ export class VoidReceiptUseCase {
     @Inject(TRANSACTION_MANAGER) private readonly tx: TransactionManager,
     @Inject(TENANT_CONTEXT) private readonly tenant: TenantContext,
     @Inject(CLOCK) private readonly clock: Clock,
+    @Inject(AR_LEDGER) private readonly ledger: ArLedger,
   ) {}
 
   async execute(input: ReceiptActionInput): Promise<Receipt> {
@@ -270,6 +275,7 @@ export class VoidReceiptUseCase {
       }
       const voided = await this.receipts.save(r.void(now));
       if (wasPosted) {
+        await this.ledger.receiptVoided(voided, toIsoDate(now));
         await this.outbox.enqueue({
           idempotencyKey: `${voided.id}:voided`,
           event: receiptEvent(

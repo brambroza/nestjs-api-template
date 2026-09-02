@@ -111,6 +111,9 @@ model Tenant {
   paymentBatches                 PaymentBatch[]
   whtCertificates                WhtCertificate[]
   whtCertificateLines            WhtCertificateLine[]
+  accountMappings                AccountMapping[]
+  journalEntries                 JournalEntry[]
+  journalLines                   JournalLine[]
 
   @@map("tenant")
 }
@@ -2021,4 +2024,90 @@ model WhtCertificateLine {
 
   @@unique([certificateId, lineNo])
   @@map("fin_wht_certificate_line")
+}
+
+// ---------------------------------------------------------------------------
+// General ledger (EPIC-C.4). Journal entries are the only writer of GL
+// balances; AR / AP / inventory post through the ledger gateway inside their
+// own transaction, resolving posting keys (AR_CONTROL, OUTPUT_VAT, …) to real
+// accounts via fin_account_mapping per company.
+// ---------------------------------------------------------------------------
+
+/// key: AR_CONTROL | AP_CONTROL | OUTPUT_VAT | INPUT_VAT | WHT_PAYABLE |
+/// WHT_RECEIVABLE | SALES_REVENUE | PURCHASE_EXPENSE | CASH | BANK | INVENTORY |
+/// COGS | GRNI | INVENTORY_ADJUSTMENT | RETAINED_EARNINGS
+model AccountMapping {
+  id          String   @id @db.NVarChar(36)
+  tenantId    String   @db.NVarChar(36)
+  companyId   String   @db.NVarChar(36)
+  key         String   @db.NVarChar(32)
+  accountId   String   @db.NVarChar(36)
+  accountCode String   @db.NVarChar(16)
+  updatedBy   String   @db.NVarChar(64)
+  updatedAt   DateTime @updatedAt @db.DateTime2
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tenantId, companyId, key])
+  @@map("fin_account_mapping")
+}
+
+/// status: DRAFT | PENDING_APPROVAL | POSTED | REVERSED | VOID.
+/// sourceType: MANUAL | AR_INVOICE | AR_RECEIPT | AP_INVOICE | AP_PAYMENT |
+/// INVENTORY | YEAR_END_CLOSE. sourceKey makes automatic postings idempotent.
+model JournalEntry {
+  id                String    @id @db.NVarChar(36)
+  tenantId          String    @db.NVarChar(36)
+  companyId         String    @db.NVarChar(36)
+  number            String    @db.NVarChar(24)
+  entryDate         DateTime  @db.Date
+  description       String    @db.NVarChar(500)
+  sourceType        String    @db.NVarChar(24)
+  sourceId          String?   @db.NVarChar(64)
+  sourceKey         String?   @db.NVarChar(128)
+  currency          String    @db.NVarChar(3)
+  status            String    @db.NVarChar(20)
+  reversalOfId      String?   @db.NVarChar(36)
+  reversedById      String?   @db.NVarChar(36)
+  approvalRequestId String?   @db.NVarChar(36)
+  totalDebitMinor   BigInt
+  totalCreditMinor  BigInt
+  version           Int       @default(0)
+  createdBy         String    @db.NVarChar(64)
+  postedAt          DateTime? @db.DateTime2
+  postedBy          String?   @db.NVarChar(64)
+  voidedAt          DateTime? @db.DateTime2
+  createdAt         DateTime  @db.DateTime2
+  updatedAt         DateTime  @updatedAt @db.DateTime2
+
+  tenant Tenant        @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  lines  JournalLine[]
+
+  @@unique([tenantId, number])
+  @@unique([tenantId, sourceKey])
+  @@index([tenantId, companyId, entryDate, status])
+  @@index([tenantId, sourceType, sourceId])
+  @@map("fin_journal_entry")
+}
+
+model JournalLine {
+  id          String  @id @db.NVarChar(36)
+  tenantId    String  @db.NVarChar(36)
+  entryId     String  @db.NVarChar(36)
+  lineNo      Int
+  accountId   String  @db.NVarChar(36)
+  accountCode String  @db.NVarChar(16)
+  debitMinor  BigInt
+  creditMinor BigInt
+  description String? @db.NVarChar(200)
+  partyType   String? @db.NVarChar(16)
+  partyId     String? @db.NVarChar(36)
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  entry  JournalEntry @relation(fields: [entryId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([entryId, lineNo])
+  @@index([tenantId, accountId])
+  @@index([tenantId, partyType, partyId])
+  @@map("fin_journal_line")
 }

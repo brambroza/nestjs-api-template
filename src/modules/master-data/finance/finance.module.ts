@@ -102,6 +102,8 @@ import { PrismaTaxCodeRepository } from './infrastructure/prisma-tax-code.reposi
     ConvertAmountUseCase,
     CheckPostingDateUseCase,
     GetFxRateUseCase,
+    LockPeriodUseCase,
+    CloseFiscalYearUseCase,
   ],
 })
 export class FinanceModule {}
